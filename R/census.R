@@ -1,3 +1,9 @@
+########################################################
+## Section 1: American Community Survey
+## ## Setting up a crosswalk for all geographies
+## ## Download variables with TidyCensus
+########################################################
+
 library(tidyverse)
 library(tidycensus)
 
@@ -190,10 +196,31 @@ move <-
 
 write_csv(move, "move.csv")
 
+########################################################
+## Section 2: County business Patterns
+## ## Unzip and bind
+## ## Clean and select industries
+########################################################
+
 ##
 ## (https://factfinder.census.gov/)
 ## 
 
+business <- 
+  reduce(
+  map(2006:2016, function(x) {
+    glue("~/Desktop/R/git/twentysixteen/data-in/census/BP_{x}_00A1.zip") %>%
+      read_csv(skip = 1) %>%
+      clean_names() %>%
+      select_if(!str_detect(names(.), "noise|geographic")) %>%
+      set_names(c("GEOID", "NAICS", "meaning", "year", "establishments", "employees", "q1", "annual")) %>%
+      mutate(year = x)
+  }), 
+  bind_rows
+)
 
+##
 
+write_csv(business, "business.csv")
 
+##
