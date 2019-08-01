@@ -3,6 +3,17 @@ library(tidycensus)
 
 ##
 
+counties <- 
+  fips_codes %>%
+  mutate(GEOID = paste(state_code, county_code, sep = "")) %>%
+  select(GEOID, state, county)
+
+##
+
+write_csv(counties, "counties.csv")
+
+##
+
 move <- get_estimates(geography = "county",
                       variables = "RNETMIG", 
                       year = 2016) %>%
@@ -167,19 +178,21 @@ past <-
 
 ##
 
-migration <- reduce(
-  map(2015:2017, function(x) {
-    get_estimates(geography = "county",
-                  variables = "RNETMIG", 
-                  year = x) %>%
-      rename(migration = value) %>%
-      select(-variable) %>%
-      mutate(year = x)
-  }), 
-  bind_rows
-)
+move <- 
+  get_estimates(geography = "county", product = "components", time_series = TRUE) %>%
+  spread(variable, value) %>%
+  mutate(PERIOD = PERIOD + 2009) %>%
+  clean_names() %>%
+  rename(GEOID = geoid) %>%
+  select(GEOID, everything(), -name) 
 
 ##
+
+write_csv(move, "move.csv")
+
+##
+## (https://factfinder.census.gov/)
+## 
 
 
 
