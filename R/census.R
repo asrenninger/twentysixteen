@@ -224,3 +224,51 @@ business <-
 write_csv(business, "business.csv")
 
 ##
+
+test <- 
+  bind_cols(business %>%
+              filter(GEOID == "01001" & year == 2016) %>%
+              select(meaning, NAICS, year) %>%
+              rename_all(tolower),
+            business %>%
+              filter(GEOID == "01001" & year == 2006) %>%
+              select(meaning, NAICS, year) %>%
+              rename_all(toupper)) %>%
+  select(naics, NAICS, meaning, MEANING, year, YEAR)
+
+##
+
+mix <-
+  business %>%
+  mutate(class = case_when(NAICS == "00" ~ "all",
+                           NAICS == "11" ~ "blue",
+                           NAICS == "21" ~ "blue",
+                           NAICS == "31-33" ~ "blue", 
+                           NAICS == "51" ~ "white",
+                           NAICS == "52" ~ "white",
+                           NAICS == "53" ~ "white",
+                           NAICS == "54" ~ "white",
+                           NAICS == "55" ~ "white",
+                           NAICS == "61" ~ "pink",
+                           NAICS == "62" ~ "pink")) %>%
+  drop_na(class) %>%
+  mutate(employees = case_when(employees == "a" ~ 10,
+                               employees == "b" ~ 60,
+                               employees == "c" ~ 175,
+                               employees == "e" ~ 375,
+                               employees == "f" ~ 750,
+                               employees == "g" ~ 1750,
+                               employees == "h" ~ 3760,
+                               employees == "i" ~ 7500,
+                               employees == "j" ~ 17500,
+                               employees == "k" ~ 37500,
+                               employees == "l" ~ 75000,
+                               TRUE ~ as.numeric(employees))) %>%
+  mutate(employees = as.numeric(employees))
+
+##
+
+write_csv(mix, "mix.csv")
+
+##
+
