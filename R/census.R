@@ -1,6 +1,6 @@
 ########################################################
 ## Section 1: American Community Survey
-## ## Setting up a crosswalk for all geographies
+## ## Set up a crosswalk for all geographies
 ## ## Download variables with TidyCensus
 ########################################################
 
@@ -269,6 +269,3 @@ mix <-
 ##
 
 write_csv(mix, "mix.csv")
-
-##
-
