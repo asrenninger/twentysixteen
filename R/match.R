@@ -93,7 +93,7 @@ theme_map <- function () {
           plot.subtitle =  element_text(face = 'plain', colour = 'black', size = 15),
           plot.caption = element_text(face = 'bold', colour = 'black'),
           strip.text = element_text(face = 'bold', colour = 'black'),
-          plot.margin = margin(20, 20, 20, 20)
+          plot.margin = margin(5, 5, 5, 5)
     )
   
 }
