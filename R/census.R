@@ -269,3 +269,79 @@ mix <-
 ##
 
 write_csv(mix, "mix.csv")
+
+########################################################
+## Section 3: Tiger files
+## ## Download counties with Tigris
+## ## Add in Media Markets
+########################################################
+
+library(tigris)
+library(sf)
+
+##
+
+options(tigris_use_cache = TRUE)
+
+##
+
+counties <- 
+  counties(class = "sf", cb = TRUE, resolution = '5m') %>%
+  filter(!str_detect(STATEFP, "15|02|60|66|69|72|78")) %>%
+  select(GEOID) %>%
+  st_transform(102003) 
+
+##
+
+states <- 
+  states(class = "sf", cb = TRUE, resolution = '5m') %>%
+  filter(!str_detect(STATEFP, "15|02|60|66|69|72|78")) %>%
+  select(GEOID) %>%
+  st_transform(102003) 
+
+
+##
+
+library(rmapshaper)
+
+##
+
+simplified <- st_simplify(states, dTolerance = 50000, preserveTopology = TRUE)
+simplified <- ms_simplify(states, keep = 0.001)
+
+##
+
+read_csv("~/Desktop/R/git/twentysixteen/data-in/leip/2016.csv") %>%
+  clean_names() %>%
+  mutate(fips = if_else(fips < 10000, paste("0", fips, sep = ""), paste(fips))) %>%
+  transmute(GEOID = str_sub(fips, 1, 2),
+            clinton_trump = clinton_trump) %>%
+  group_by(GEOID) %>%
+  summarise(clinton_trump = sum(clinton_trump)) %>%
+  mutate(result = case_when(clinton_trump < 0 ~ "trump",
+                            clinton_trump > 0 ~ "clinton")) %>%
+  left_join(simplified) %>%
+  st_as_sf() %>%
+  ggplot(aes(fill = result)) +
+  geom_sf(size = 0.5, colour = '#ffffff', show.legend = FALSE) +
+  scale_fill_manual(values = c(pal[2], pal[8])) +
+  theme_map() +
+  ggsave("logo.png", height = 4, width = 6, dpi = 300)
+
+##
+
+st_write(states, "states.geojson")
+st_write(counties, "counties.geojson")
+
+##
+
+dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
+           "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  mutate(STATEFP = if_else(STATEFP < 10, paste("0", STATEFP, sep = ""), paste(STATEFP)),
+         CNTYFP = if_else(CNTYFP < 100 & CNTYFP > 9, paste("0", CNTYFP, sep = ""),
+                          if_else(CNTYFP < 10, paste("00", CNTYFP, sep = ""), paste(CNTYFP)))) %>%
+  mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
+  mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
+  left_join(counties) %>%
+  st_as_sf()
+
