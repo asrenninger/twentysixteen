@@ -52,7 +52,7 @@ read_csv("~/Desktop/R/git/twentysixteen/data-in/leip/2016.csv") %>%
   geom_sf(size = 0.5, colour = '#ffffff', show.legend = FALSE) +
   scale_fill_manual(values = c(pal[2], pal[8])) +
   theme_map() +
-  ggsave("logo.png", height = 8, width = 8, dpi = 300)
+  ggsave("logo.png", height = 4, width = 6, dpi = 300)
   
 ##
 
