@@ -9,14 +9,77 @@ library(tidycensus)
 
 ##
 
-counties <- 
+crosswalk <- 
   fips_codes %>%
   mutate(GEOID = paste(state_code, county_code, sep = "")) %>%
-  select(GEOID, state, county)
+  select(GEOID, state, county, state_code, county_code)
 
 ##
 
-write_csv(counties, "counties.csv")
+write_csv(counties, "crosswalk.csv")
+
+##
+
+library(glue)
+
+##
+
+batch <- 
+  reduce(
+    map(2012:2016, function(x) {
+      get_acs(geography = "county", 
+              variables = c("B19083_001", "B06011_001", "B25077_001", "B25113_001",
+                            "B02001_002", "B02001_003", 
+                            "C18120_002", "C18120_006", "C18120_003",
+                            "B01001_001", "B11016_001", "B01002_001", "B06009_005",
+                            "B05006_124", "B05006_001",
+                            "B07001_033", "B07001_081"), 
+              year = x, output = "wide") %>% 
+        rename(gini = B19083_001E,
+               earn = B06011_001E,
+               home = B25077_001E,
+               rent = B25113_001E,
+               white = B02001_002E,
+               black = B02001_003E,
+               force = C18120_002E,
+               unemployed = C18120_006E,
+               employed = C18120_003E,
+               peeps = B01001_001E,
+               holds = B11016_001E,
+               age = B01002_001E,
+               edu = B06009_005E,
+               latinos = B05006_124E,
+               foreign = B05006_001E,
+               nation = B07001_033E,
+               abroad = B07001_081E) %>%
+        select(GEOID, gini, earn, home, rent,
+               white, black, 
+               force, unemployed, employed, 
+               peeps, holds, age, edu,
+               latinos, foreign,
+               nation, abroad) %>%
+        mutate(year = glue("{x}"))
+    }), 
+    bind_rows
+  )
+
+##
+
+write_csv(batch, "batch.csv")
+
+##
+
+move <- 
+  get_estimates(geography = "county", product = "components", time_series = TRUE) %>%
+  spread(variable, value) %>%
+  mutate(PERIOD = PERIOD + 2009) %>%
+  clean_names() %>%
+  rename(GEOID = geoid) %>%
+  select(GEOID, everything(), -name) 
+
+##
+
+write_csv(move, "move.csv")
 
 ##
 
@@ -61,8 +124,8 @@ race <-
 ##
 
 work <-
-  get_acs(geography = "county", variables = c("C18120_002E", "C18120_006E", "C18120_003E"),
-          year = 2016, output = "wide") %>%
+  get_acs(geography = "county", variables = c("C18120_002", "C18120_006", "C18120_003"),
+          year = 2012, output = "wide") %>%
   rename(force = C18120_002E,
          unemployed = C18120_006E,
          employed = C18120_003E) %>%
@@ -81,7 +144,8 @@ live <-
 
 ##
 
-fors <- get_acs(geography = "county", variables = c("B05006_124", "B05006_001"),
+fors <- 
+  get_acs(geography = "county", variables = c("B05006_124", "B05006_001"),
                 year = 2016, output = "wide") %>%
   rename(latinos = B05006_124E,
          foreign = B05006_001E) %>%
@@ -90,7 +154,7 @@ fors <- get_acs(geography = "county", variables = c("B05006_124", "B05006_001"),
 ##
 
 outs <- 
-  mobility <- get_acs(geography = "county", variables = c("B07001_033", "B07001_081"),
+  get_acs(geography = "county", variables = c("B07001_033", "B07001_081"),
                       year = 2016, output = "wide") %>%
   rename(nation = B07001_033E,
          abroad = B07001_081E) %>%
@@ -136,7 +200,7 @@ vars <- load_variables(year = 2010, dataset = "acs5", cache = TRUE)
 test <- filter(vars, str_detect(concept, "EMPLOYMENT"))
 
 work <-
-  get_acs(geography = "county", variables = c("C18120_002E", "C18120_006E", "C18120_003E"),
+  get_acs(geography = "county", variables = c("C18120_002", "C18120_006", "C18120_003"),
           year = 2010, output = "wide") %>%
   rename(force = C18120_002E,
          unemployed = C18120_006E,
@@ -156,7 +220,8 @@ live <-
 
 ##
 
-fors <- get_acs(geography = "county", variables = c("B05006_124", "B05006_001"),
+fors <- 
+  get_acs(geography = "county", variables = c("B05006_124", "B05006_001"),
                 year = 2010, output = "wide") %>%
   rename(latinos = B05006_124E,
          foreign = B05006_001E) %>%
@@ -181,20 +246,6 @@ past <-
   left_join(race) %>%
   left_join(fors) %>%
   left_join(outs)
-
-##
-
-move <- 
-  get_estimates(geography = "county", product = "components", time_series = TRUE) %>%
-  spread(variable, value) %>%
-  mutate(PERIOD = PERIOD + 2009) %>%
-  clean_names() %>%
-  rename(GEOID = geoid) %>%
-  select(GEOID, everything(), -name) 
-
-##
-
-write_csv(move, "move.csv")
 
 ########################################################
 ## Section 2: County business Patterns
@@ -334,14 +385,3 @@ st_write(states, "states.geojson")
 st_write(counties, "counties.geojson")
 
 ##
-
-dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
-           "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-  mutate(STATEFP = if_else(STATEFP < 10, paste("0", STATEFP, sep = ""), paste(STATEFP)),
-         CNTYFP = if_else(CNTYFP < 100 & CNTYFP > 9, paste("0", CNTYFP, sep = ""),
-                          if_else(CNTYFP < 10, paste("00", CNTYFP, sep = ""), paste(CNTYFP)))) %>%
-  mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
-  mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
-  left_join(counties) %>%
-  st_as_sf()
-

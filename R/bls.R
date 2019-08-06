@@ -2,6 +2,12 @@ library(readxl)
 library(glue)
 library(janitor)
 
+########################################################
+## Section 1: Employment estimates
+## ## 
+## ## 
+########################################################
+
 ##
 ## (https://www.bls.gov/lau/#cntyaa)
 ##
