@@ -350,7 +350,6 @@ states <-
   select(GEOID) %>%
   st_transform(102003) 
 
-
 ##
 
 library(rmapshaper)
