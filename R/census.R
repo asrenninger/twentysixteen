@@ -300,7 +300,7 @@ mix <-
                            NAICS == "53" ~ "white",
                            NAICS == "54" ~ "white",
                            NAICS == "55" ~ "white",
-                           NAICS == "61" ~ "pink",
+                      #     NAICS == "61" ~ "pink",
                            NAICS == "62" ~ "pink")) %>%
   drop_na(class) %>%
   mutate(employees = case_when(employees == "a" ~ 10,
@@ -383,4 +383,150 @@ read_csv("~/Desktop/R/git/twentysixteen/data-in/leip/2016.csv") %>%
 st_write(states, "states.geojson")
 st_write(counties, "counties.geojson")
 
+########################################################
+## Section 4: Location Quotients
+## ## Use tiger files to create regions
+## ## Computer location quotients
+########################################################
+
+library(tidyverse)
+library(sf)
+
 ##
+
+county_points <- 
+  counties %>%
+  st_centroid() %>%
+  st_coordinates() %>%
+  as_tibble()
+
+##
+
+library(FNN)
+
+##
+
+nn <- get.knnx(county_points, county_points, k = 10)
+
+##
+
+bases <- tibble()
+
+##
+
+k <- 10
+
+for (i in 1:nrow(counties)) {
+  
+  iteration <-
+    counties %>%
+    slice(i) %>%
+    pull(GEOID)
+  
+  index <- 
+    nn$nn.index %>%
+    as_tibble() %>%
+    bind_cols(counties) %>%
+    select(-geometry) %>%
+    gather(county, index, V1:glue("V{k}")) %>%
+    filter(GEOID == iteration) %>%
+    pull(index)
+  
+  region <- 
+    counties %>%
+    slice(index) %>%
+    st_drop_geometry() %>%
+    mutate(region = 1)
+  
+  reference <- 
+    mix %>%
+    left_join(region) %>%
+    drop_na() %>%
+    group_by(NAICS, year) %>%
+    summarise(employment = sum(employees)) %>%
+    mutate(change = (employment - lag(employment)) / employment) %>%
+    ungroup()
+  
+  base <- 
+    reference %>%
+    filter(NAICS == "00") %>%
+    select(-NAICS) %>%
+    rename(total_employment = employment,
+           total_change = change) %>%
+    right_join(reference) %>%
+    mutate(base_share = employment / total_employment,
+           GEOID = iteration) %>%
+    select(GEOID, year, NAICS, base_share)
+  
+  bases <- bind_rows(bases, base)
+  
+}
+
+##
+
+basics <- 
+  mix %>%
+  filter(NAICS == "00") %>%
+  select(-NAICS) %>%
+  rename(total_employment = employees) %>%
+  select(GEOID, year, total_employment) %>%
+  right_join(mix) %>%
+  mutate(area_share = employees / total_employment) %>%
+  mutate(area_share = if_else(area_share > 1, 1, area_share)) %>%
+  left_join(bases) %>%
+  mutate(loquo = area_share / base_share) %>%
+  drop_na()
+
+##
+
+basics %>%
+  filter(year == 2006) %>%
+  group_by(GEOID) %>%
+  arrange(desc(loquo)) %>%
+  slice(1)
+
+##
+
+collar <-
+  basics %>%
+  filter(year == 2006) %>%
+  filter(class != "all") %>%
+  group_by(GEOID) %>%
+  arrange(desc(loquo)) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(GEOID, class) %>%
+  rename(collar = class)
+
+##
+
+loquos <-
+  basics %>%
+  group_by(GEOID, class) %>%
+  summarise(colour = mean(loquo, na.rm = TRUE)) %>%
+  spread(class, colour)
+
+##
+
+growth <-
+  basics %>%
+  group_by(GEOID, class, year) %>%
+  summarise(employment = mean(employees, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(GEOID, class) %>%
+  mutate(change = 1 - (employment / lag(employment))) %>%
+  ungroup() %>%
+  group_by(GEOID, class) %>%
+  summarise(growth = mean(change, na.rm = TRUE)) %>%
+  spread(class, growth)
+
+##
+
+jobs <- 
+  loquos %>%
+  select(-all) %>%
+  rename(blue_share = blue,
+         pink_share = pink,
+         white_share = white) %>%
+  left_join(growth) %>%
+  left_join(collar)
