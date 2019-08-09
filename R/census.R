@@ -410,11 +410,11 @@ nn <- get.knnx(county_points, county_points, k = 10)
 
 ##
 
+k <- 10
+
 bases <- tibble()
 
 ##
-
-k <- 10
 
 for (i in 1:nrow(counties)) {
   
