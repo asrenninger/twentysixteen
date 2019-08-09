@@ -8,13 +8,15 @@ library(janitor)
 ## ## 
 ########################################################
 
+library(readxl)
+
 ##
 ## (https://www.bls.gov/lau/#cntyaa)
 ##
 
 jobs <-
   reduce(
-    map(10:16, function(x) {
+    map(12:16, function(x) {
       glue("~/Desktop/R/git/twentysixteen/data-in/bls/laucnty{x}.xlsx") %>%
         read_xlsx(skip = 4) %>%
         clean_names() %>%
