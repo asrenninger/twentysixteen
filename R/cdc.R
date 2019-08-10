@@ -1,9 +1,10 @@
-library(tidyverse)
-library(janitor)
-
 ########################################################
 ## Section 1: Wonder
 ## ## 
 ## ## 
 ########################################################
+
+library(tidyverse)
+library(janitor)
+
 

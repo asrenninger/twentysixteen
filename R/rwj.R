@@ -1,11 +1,11 @@
-library(tidyverse)
-library(janitor)
-
 ########################################################
 ## Section 1: Community Health Rankings
 ## ## Import all files
 ## ## allign columns
 ########################################################
+
+library(tidyverse)
+library(janitor)
 
 vars <- c("FIPS",
           "Years of Potential Life Lost Rate", "YPLL Rate", "% Fair/Poor",
