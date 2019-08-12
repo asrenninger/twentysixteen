@@ -29,8 +29,9 @@ votes <-
 
 votes <-
   votes %>%
-  filter(state != "T") %>%
-  mutate(GEOID = if_else(GEOID < 10000, paste("0", GEOID, sep = ""), paste(GEOID)))
+  filter(state != "T" & state != "PR") %>%
+  mutate(GEOID = if_else(GEOID < 10000, paste("0", GEOID, sep = ""), paste(GEOID))) %>%
+  filter(str_sub(GEOID, 1, 2) != "02")
 
 ##
 
@@ -70,6 +71,7 @@ margins <-
          republican_lagged_2008 = lag(republican_lagged),
          third_lagged_2008 = lag(third_lagged),
          other_lagged_2008 = lag(other_lagged)) %>%
+  ungroup() %>%
   filter(year == 2016) %>%
   mutate(margin = democrat_pct - republican_pct,
          margin_2012 = democrat_lagged - republican_lagged,
@@ -94,6 +96,7 @@ flips <-
          republican_lagged_2008 = lag(republican_lagged),
          third_lagged_2008 = lag(third_lagged),
          other_lagged_2008 = lag(other_lagged)) %>%
+  ungroup() %>%
   filter(year == 2016) %>%
   mutate(eight = case_when(democrat_lagged_2008 < republican_lagged_2008 ~ "R",
                            TRUE ~ "D"),
@@ -102,19 +105,11 @@ flips <-
          sixteen = case_when(democrat_pct < republican_pct ~ "R",
                              TRUE ~ "D")) %>%
   mutate(flips = paste(eight, twelve, sixteen, sep = "")) %>%
-  select(GEOID, flips)
+  select(GEOID, flips) 
 
 ##
 
 margins %>%
   left_join(flips) %>%
-  group_by(flips) %>%
-  summarise(avg_2008 = mean(change_2008, na.rm = TRUE),
-            avg_2012 = mean(change_2012, na.rm = TRUE),
-            n = n())
-
-
-
-
-
+  write_csv("left.csv")
 
