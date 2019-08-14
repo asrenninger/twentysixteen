@@ -12,3 +12,7 @@ dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistent
   mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
   mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
   select(DMA, GEOID)
+
+##
+
+
