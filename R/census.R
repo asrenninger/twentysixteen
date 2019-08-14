@@ -16,7 +16,7 @@ crosswalk <-
 
 ##
 
-write_csv(counties, "crosswalk.csv")
+write_csv(crosswalk, "crosswalk.csv")
 
 ##
 
