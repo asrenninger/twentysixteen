@@ -49,3 +49,33 @@ write_csv(clean, "jobs.csv")
 
 ##
 
+employment <- read_csv("data-out/jobs.csv")
+
+##
+
+change <- function(x) {((x / lag(x)) - 1) * 100}
+
+##
+
+rates <- 
+  employment %>%
+  filter(year == 2012 | year == 2016) %>%
+  group_by(GEOID) %>%
+  mutate_if(is.numeric, change) %>%
+  select(-year) %>%
+  slice(2) %>%
+  ungroup() %>%
+  set_names(c(names(select(employment, -year)) %>% str_c("_ch", sep = ""))) %>%
+  rename(GEOID = GEOID_ch)
+
+##
+
+employment %>%
+  filter(year == 2016) %>%
+  select(-year) %>%
+  left_join(rates) %>%
+  write_csv("jobs.csv")
+
+##
+
+read_csv("data-out/jobs.csv") %>% glimpse()

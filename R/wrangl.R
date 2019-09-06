@@ -105,7 +105,7 @@ write_csv(changes, "changes.csv")
 ## ## Measure change
 ########################################################
 
-
+unemployment <- read_csv("data-out/jobs.csv")
 
 ########################################################
 ## Section 3: RWJ data
