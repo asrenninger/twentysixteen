@@ -85,13 +85,13 @@ for (i in 1:length(change_vars)) {
     set_names(c("GEOID", "year", "variable")) %>%
     group_by(GEOID) %>% 
     mutate(variable_lag = lag(variable)) %>%
-    mutate(change = case_when(variable != 0 & variable_lag != 0 ~ (1 - (variable_lag / variable)) * 100,
+    mutate(change = case_when(variable != 0 & variable_lag != 0 ~ ((variable / variable_lag) - 1) * 100,
                               variable != 0 & variable_lag == 0 ~ 100,
                               variable == 0 & variable_lag != 0 ~ -100,
                               variable == 0 & variable_lag == 0 ~ 0)) %>%
     replace_na(list(change = NA)) %>%
     summarise(change = mean(change, na.rm = TRUE)) %>%
-    set_names(c("GEOID", glue("change_{iteration}")))
+    set_names(c("GEOID", glue("{iteration}_ch")))
   
   changes <- left_join(changes, temp)
   
