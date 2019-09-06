@@ -304,17 +304,29 @@ mix <-
                            NAICS == "62" ~ "pink")) %>%
   drop_na(class) %>%
   mutate(employees = case_when(employees == "a" ~ 10,
-                               employees == "b" ~ 60,
-                               employees == "c" ~ 175,
-                               employees == "e" ~ 375,
-                               employees == "f" ~ 750,
-                               employees == "g" ~ 1750,
-                               employees == "h" ~ 3760,
-                               employees == "i" ~ 7500,
-                               employees == "j" ~ 17500,
-                               employees == "k" ~ 37500,
-                               employees == "l" ~ 75000,
+                               employees == "b" ~ 20,
+                               employees == "c" ~ 100,
+                               employees == "e" ~ 250,
+                               employees == "f" ~ 500,
+                               employees == "g" ~ 1000,
+                               employees == "h" ~ 2500,
+                               employees == "i" ~ 5000,
+                               employees == "j" ~ 10000,
+                               employees == "k" ~ 25000,
+                               employees == "l" ~ 50000,
                                TRUE ~ as.numeric(employees))) %>%
+#  mutate(employees = case_when(employees == "a" ~ 10,
+#                               employees == "b" ~ 60,
+#                               employees == "c" ~ 175,
+#                               employees == "e" ~ 375,
+#                               employees == "f" ~ 750,
+#                               employees == "g" ~ 1750,
+#                               employees == "h" ~ 3760,
+#                               employees == "i" ~ 7500,
+#                               employees == "j" ~ 17500,
+#                               employees == "k" ~ 37500,
+#                               employees == "l" ~ 75000,
+#                               TRUE ~ as.numeric(employees))) %>%
   mutate(employees = as.numeric(employees))
 
 ##
@@ -518,7 +530,11 @@ growth <-
   ungroup() %>%
   group_by(GEOID, class) %>%
   summarise(growth = mean(change, na.rm = TRUE)) %>%
-  spread(class, growth)
+  spread(class, growth) %>%
+  rename(all_change = all,
+         blue_change = blue,
+         pink_change = pink,
+         white_change = white)
 
 ##
 
@@ -530,3 +546,7 @@ jobs <-
          white_share = white) %>%
   left_join(growth) %>%
   left_join(collar)
+
+##
+
+write_csv(jobs, "loquo.csv")

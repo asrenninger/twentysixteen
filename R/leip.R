@@ -8,6 +8,8 @@ library(tidyverse)
 library(glue)
 library(readxl)
 
+##
+
 votes <- 
   reduce(
   map(c(2008, 2012, 2016), function(x) {
@@ -78,7 +80,7 @@ margins <-
          margin_2008 = democrat_lagged_2008 - republican_lagged_2008) %>%
   mutate(change_2012 = margin - margin_2012,
          change_2008 = margin - margin_2008) %>%
-  select(GEOID, margin, change_2008, change_2012)
+  select(GEOID, margin, change_2008, change_2012, margin_2008, margin_2012)
 
 ##
 

@@ -6,6 +6,8 @@ rallies <-
   read_xlsx("data-in/appc/rallies.xlsx", sheet = 3, skip = 1) %>%
   clean_names()
 
+##
+
 trump   <- rallies[, 1:5]
 clinton <- rallies[, 14:18]
 
@@ -92,3 +94,7 @@ rallies_located <-
 ##
 
 write_csv(rallies_located, "rallies.csv")
+
+##
+
+read_csv("data-out/rallies.csv")
