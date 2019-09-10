@@ -205,13 +205,14 @@ dated %>%
   write_csv("rallies.csv")
 
 ########################################################
-## Section 5: Leip data
-## ## Line up the left hand of the regression
+## Section 5: aggregated data
+## ## Line up the right hand of the regression
 ## ## 
 ########################################################
 
 independent <- 
   health %>%
+  left_join(despair) %>%
   left_join(changes) %>%
   left_join(population) %>%
   left_join(loquo)
@@ -234,6 +235,15 @@ regression <-
   crosswalk %>%
   left_join(dependent) %>%
   left_join(independent)
+
+regression %>%
+  tabyl(state, flips) %>%
+  adorn_totals("row") %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  formattable::formattable()
 
 ##
 
@@ -320,4 +330,6 @@ ggplot(data = test) +
             colour = 'grey40') +
   geom_point(aes(x = X, y =Y), 
              colour = 'grey70')
+
+
 

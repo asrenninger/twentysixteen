@@ -2,6 +2,8 @@ library(readxl)
 library(tidyverse)
 library(janitor)
 
+##
+
 rallies <- 
   read_xlsx("data-in/appc/rallies.xlsx", sheet = 3, skip = 1) %>%
   clean_names()
@@ -97,4 +99,70 @@ write_csv(rallies_located, "rallies.csv")
 
 ##
 
-read_csv("data-out/rallies.csv")
+rallies <- read_csv("data-out/rallies.csv")
+
+##
+
+library(sf)
+
+##
+
+counties <- st_read("data-out/counties.geojson", crs = 102003)
+
+##
+
+map <- 
+  rallies %>%
+  select(-GEOID) %>%
+  st_as_sf(coords = c("lon", "lat"), remove = FALSE, crs = 4326) %>%
+  st_transform(102003)
+
+ggplot() +
+  geom_sf(data = counties, aes(), fill = NA) +
+  geom_sf(data = map, aes(colour = DMA), show.legend = FALSE)
+
+##
+
+st_join(map, counties) %>%
+  glimpse() %>%
+  st_drop_geometry() %>%
+  select(GEOID) %>%
+  mutate(works = 1) %>%
+  left_join(rallies)
+
+##
+
+library(lubridate)
+
+##
+
+rallies %>%
+  filter(date > as_date('2016-07-18')) %>%
+  group_by(GEOID, candidate) %>%
+  summarise(num_rallies_post_convention = n()) %>%
+  spread(candidate, num_rallies_post_convention) %>%
+  rename(clinton_rallies_county_post_convention = clinton,
+         trump_rallies_county_post_convention = trump) %>%
+  write_csv("rally_counties.csv")
+
+##
+
+rallies %>%
+  filter(date > as_date('2016-07-18')) %>%
+  group_by(GEOID, candidate) %>%
+  summarise(num_rallies_post_convention = n()) %>%
+  spread(candidate, num_rallies_post_convention) %>%
+  left_join(dma) %>%
+  select(-GEOID) %>%
+  right_join(dma) %>%
+  group_by(DMA) %>%
+  summarise(trump_rallies_dma_post_convention = sum(trump, na.rm = TRUE),
+            clinton_rallies_dma_post_convention = sum(clinton, na.rm = TRUE)) %>%
+  left_join(dma) %>%
+  select(GEOID, DMA, everything()) %>%
+  write_csv("rallies_DMA.csv")
+
+##
+
+
+
