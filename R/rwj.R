@@ -82,8 +82,6 @@ aggregate %>%
   left_join(rates) %>%
   write_csv("health.csv")
 
-##
-
 
 
 

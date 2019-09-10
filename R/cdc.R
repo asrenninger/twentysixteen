@@ -16,11 +16,11 @@ despair <-
              "\t", escape_double = FALSE, trim_ws = TRUE) %>%
   clean_names() %>%
   rename(GEOID = county_code) %>%
-  mutate(rate = (deaths / population)) %>%
+  mutate(rate = (deaths / population) * 100) %>%
   select(GEOID, year, rate) %>%
   filter(year > 2012) %>%
   group_by(GEOID) %>%
-  summarise(rate = mean(rate))
+  summarise(dod_rate = mean(rate))
 
 ##
 
@@ -40,16 +40,16 @@ pills <-
   group_by(GEOID) %>%
   mutate(change = case_when(lag(yearly) == 0 & yearly == 0 ~ 0,
                             lag(yearly) == 0 & yearly != 0 ~ 1,
-                            TRUE ~ (yearly / lag(yearly)) - 1))
+                            TRUE ~ (yearly / lag(yearly)) - 1) * 100)
 
 ##
 
 pills <-
   pills %>%
   group_by(GEOID) %>%
-  summarise(total = mean(pills, na.rm = TRUE),
-            annually = mean(pills_per_county_per_year, na.rm = TRUE),
-            change = mean(change, na.rm = TRUE)) %>%
+  summarise(total_pills = mean(pills, na.rm = TRUE),
+            annual_pills = mean(pills_per_county_per_year, na.rm = TRUE),
+            change_pills = mean(change, na.rm = TRUE)) %>%
   replace_na(list(total = NA, annually = NA, change = NA))
 
 ##
@@ -62,6 +62,7 @@ despair <-
 
 write_csv(despair, "despair.csv")
 
-##
+
+
 
 

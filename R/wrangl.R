@@ -129,80 +129,22 @@ health <- read_csv("data-out/health.csv")
 ## ## Add in advertising
 ########################################################
 
-library(sf)
+rallies_counties <- read_csv("data-out/rallies_counties.csv")
+rallies_markets <- read_csv("data-out/rallies_DMA.csv")
+rallies_distances <- read_csv("data-out/rallies_distances.csv")
 
 ##
 
-dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
-                  "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-  mutate(STATEFP = if_else(STATEFP < 10, paste("0", STATEFP, sep = ""), paste(STATEFP)),
-         CNTYFP = if_else(CNTYFP < 100 & CNTYFP > 9, paste("0", CNTYFP, sep = ""),
-                          if_else(CNTYFP < 10, paste("00", CNTYFP, sep = ""), paste(CNTYFP)))) %>%
-  mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
-  mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
-  select(DMA, GEOID)
+names(rallies)
 
-counties <- 
-  st_read("data-out/counties.geojson") %>%
-  st_set_crs(102003)
-
-##
-
-markets <- 
-  counties %>%
-  left_join(dma) %>%
-  group_by(DMA) %>%
-  summarise()
-
-##
-
-rallies <- 
-  read_csv("data-out/rallies.csv") %>%
-  st_as_sf(coords = c("lon", "lat"), remove = FALSE) %>%
-  st_set_crs(4326) %>%
-  st_transform(102003)
-
-##
-
-coverage <-
-  rallies %>%
-  st_join(markets) %>%
-  st_join(counties) %>%
-  st_as_sf()
-
-##
-
-library(lubridate)
-library(glue)
-
-##
-
-dated <- 
-  coverage %>%
-  separate(date_of_rally, sep = ", ", into = c("day", "date")) %>%
-  separate(date, sep = " ", into = c("month", "date")) %>%
-  mutate(date = glue("{month} {date}th, 2016")) %>%
-  select(-month, -day) %>%
-  mutate(date = mdy(date)) %>%
-  drop_na(date)
-
-coverage %>%
-  group_by(DMA, candidate) %>%
-  summarise(n = n()) %>%
-  arrange(desc(n)) %>%
-  ungroup() %>%
-  group_by(DMA) %>%
-  slice(1) %>%
-  ungroup() %>%
-  st_drop_geometry() %>%
-  left_join(markets) %>%
-  st_as_sf() %>%
-  select(candidate) %>%
-  plot(pal = c('blue', 'red'))
-
-dated %>%
-  select(-geometry) %>%
-  write_csv("rallies.csv")
+rallies <-
+  rallies_distances %>%
+  left_join(rallies_markets) %>%
+  left_join(rallies_counties) %>%
+  replace_na(list(trump_rallies_dma_post_convention = 0,
+                  clinton_rallies_dma_post_convention = 0,
+                  trump_rallies_county_post_convention = 0,
+                  clinton_rallies_county_post_convention = 0))
 
 ########################################################
 ## Section 5: aggregated data

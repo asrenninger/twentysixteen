@@ -99,6 +99,83 @@ write_csv(rallies_located, "rallies.csv")
 
 ##
 
+library(sf)
+
+##
+
+dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
+                  "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  mutate(STATEFP = if_else(STATEFP < 10, paste("0", STATEFP, sep = ""), paste(STATEFP)),
+         CNTYFP = if_else(CNTYFP < 100 & CNTYFP > 9, paste("0", CNTYFP, sep = ""),
+                          if_else(CNTYFP < 10, paste("00", CNTYFP, sep = ""), paste(CNTYFP)))) %>%
+  mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
+  mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
+  select(DMA, GEOID)
+
+##
+
+counties <- st_read("data-out/counties.geojson", crs = 102003)
+
+##
+
+markets <- 
+  counties %>%
+  left_join(dma) %>%
+  group_by(DMA) %>%
+  summarise()
+
+##
+
+rallies <- 
+  read_csv("data-out/rallies.csv") %>%
+  st_as_sf(coords = c("lon", "lat"), remove = FALSE) %>%
+  st_set_crs(4326) %>%
+  st_transform(102003)
+
+##
+
+coverage <-
+  rallies %>%
+  st_join(markets) %>%
+  st_join(counties) %>%
+  st_as_sf()
+
+##
+
+library(lubridate)
+library(glue)
+
+##
+
+dated <- 
+  coverage %>%
+  separate(date_of_rally, sep = ", ", into = c("day", "date")) %>%
+  separate(date, sep = " ", into = c("month", "date")) %>%
+  mutate(date = glue("{month} {date}th, 2016")) %>%
+  select(-month, -day) %>%
+  mutate(date = mdy(date)) %>%
+  drop_na(date)
+
+coverage %>%
+  group_by(DMA, candidate) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n)) %>%
+  ungroup() %>%
+  group_by(DMA) %>%
+  slice(1) %>%
+  ungroup() %>%
+  st_drop_geometry() %>%
+  left_join(markets) %>%
+  st_as_sf() %>%
+  select(candidate) %>%
+  plot(pal = c('blue', 'red'))
+
+dated %>%
+  select(-geometry) %>%
+  write_csv("rallies.csv")
+
+##
+
 rallies <- read_csv("data-out/rallies.csv")
 
 ##
@@ -141,9 +218,9 @@ rallies %>%
   group_by(GEOID, candidate) %>%
   summarise(num_rallies_post_convention = n()) %>%
   spread(candidate, num_rallies_post_convention) %>%
-  rename(clinton_rallies_county_post_convention = clinton,
-         trump_rallies_county_post_convention = trump) %>%
-  write_csv("rally_counties.csv")
+  rename(trump_rallies_county_post_convention = trump,
+         clinton_rallies_county_post_convention = clinton) %>%
+  write_csv("rallies_counties.csv")
 
 ##
 
@@ -185,3 +262,87 @@ centroids <-
 
 ##
 
+ggplot() +
+  geom_point(data = centroids %>% as_tibble(), aes(X, Y), alpha = 0.5) +
+  geom_point(data = t_rallies %>% as_tibble(), aes(X, Y), colour = 'red') +
+  geom_point(data = c_rallies %>% as_tibble(), aes(X, Y), colour = 'blue')
+
+##
+
+library(spdep)
+library(FNN)
+
+##
+
+nn <- get.knnx(t_rallies, centroids, k = 1)
+
+trump_first <-
+  as.data.frame(nn$nn.dist) %>%
+  rownames_to_column(var = "counties") %>%
+  gather(trump, dist_trump, V1) %>%
+  arrange(as.numeric(counties)) %>%
+  group_by(counties) %>%
+  summarise(d_trump = mean(dist_trump)) %>%
+  arrange(as.numeric(counties)) %>% 
+  select(-counties) %>%
+  bind_cols(counties) %>%
+  select(GEOID, d_trump)
+
+nn <- get.knnx(c_rallies, county_points, k = 1)
+
+clinton_first <-
+  as.data.frame(nn$nn.dist) %>%
+  rownames_to_column(var = "counties") %>%
+  gather(clinton, dist_clinton, V1) %>%
+  arrange(as.numeric(counties)) %>%
+  group_by(counties) %>%
+  summarise(d_clinton = mean(dist_clinton)) %>%
+  arrange(as.numeric(counties)) %>% 
+  select(-counties) %>%
+  bind_cols(counties) %>%
+  select(GEOID, d_clinton)
+
+##
+
+nn <- get.knnx(t_rallies, centroids, k = 3)
+
+trump_third <-
+  as.data.frame(nn$nn.dist) %>%
+  rownames_to_column(var = "counties") %>%
+  gather(trump, dist_trump, V1:V3) %>%
+  arrange(as.numeric(counties)) %>%
+  group_by(counties) %>%
+  summarize(d_trump3 = mean(dist_trump)) %>%
+  arrange(as.numeric(counties)) %>% 
+  select(-counties) %>%
+  bind_cols(counties) %>%
+  select(GEOID, d_trump3)
+
+nn <- get.knnx(c_rallies, centroids, k = 3)
+
+clinton_third <-
+  as.data.frame(nn$nn.dist) %>%
+  rownames_to_column(var = "counties") %>%
+  gather(clinton, dist_clinton, V1:V3) %>%
+  arrange(as.numeric(counties)) %>%
+  group_by(counties) %>%
+  summarise(d_clinton3 = mean(dist_clinton)) %>%
+  arrange(as.numeric(counties)) %>% 
+  select(-counties) %>%
+  bind_cols(counties) %>%
+  select(GEOID, d_clinton3)
+
+##
+
+rallies_distance <-
+  counties %>%
+  left_join(trump_first) %>%
+  left_join(trump_third) %>%
+  left_join(clinton_first) %>%
+  left_join(clinton_third)
+
+##
+
+rallies_distance %>%
+  st_drop_geometry() %>%
+  write_csv("rallies_distances.csv")

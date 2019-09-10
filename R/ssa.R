@@ -1,3 +1,9 @@
+########################################################
+## Section 1: Social Security Disability Insurance
+## ## 
+## ## 
+########################################################
+
 library(readxl)
 library(tidyverse)
 library(janitor)
@@ -18,5 +24,3 @@ ssi %>%
   mutate(ssi_rate = (ssi_recipients / population) * 100) %>%
   select(-population) %>%
   write_csv("ssi.csv")
-
-##
