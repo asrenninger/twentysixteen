@@ -164,5 +164,24 @@ rallies %>%
 
 ##
 
+t_rallies <-
+  map %>%
+  filter(date > as_date('2016-07-18') & candidate == "trump") %>%
+  st_centroid() %>%
+  st_coordinates()
 
+c_rallies <-
+  map %>%
+  filter(date > as_date('2016-07-18') & candidate == "clinton") %>%
+  st_centroid() %>%
+  st_coordinates()
+
+##
+
+centroids <- 
+  counties %>%
+  st_centroid() %>%
+  st_coordinates()
+
+##
 
