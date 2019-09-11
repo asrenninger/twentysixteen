@@ -19,7 +19,7 @@ ssi <- read_excel("data-in/ssa/ssi_c16.xlsx") %>%
 ssi %>%
   transmute(GEOID = if_else(fips < 10000, paste("0", fips, sep = ""), paste(fips)),
             ssi_recipients = ssi_recipients) %>%
-  left_join(population) %>%
+  left_join(census) %>%
   select(1, 2, population) %>%
   mutate(ssi_rate = (ssi_recipients / population) * 100) %>%
   select(-population) %>%

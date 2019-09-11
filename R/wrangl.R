@@ -9,8 +9,6 @@ library(janitor)
 
 acs <- read_csv("data-out/batch.csv")
 
-glimpse(census)
-
 population <- 
   counties %>%
   mutate(area = st_area(geometry)) %>%
@@ -59,16 +57,6 @@ change_vars <-
 
 ##
 
-test <- 
-  population %>%
-  select(GEOID, year, pct_foreign_lat) %>%
-  group_by(GEOID) %>% 
-  mutate(change = (1 - (lag(pct_foreign_lat) / pct_foreign_lat)) * 100) %>%
-  summarise(change_for_lat = mean(change, na.rm = TRUE)) %>%
-  left_join(crosswalk)
-
-##
-
 library(glue)
 
 ##
@@ -97,15 +85,33 @@ for (i in 1:length(change_vars)) {
   
 }
 
+##
+
 write_csv(changes, "changes.csv")
 
+##
+
+census <-
+  population %>%
+  filter(year == "2016") %>%
+  select(-year) %>%
+  left_join(changes) %>%
+  select(-state, -county, -state_code, -county_code)
+
 ########################################################
-## Section 2: BLS data
+## Section 2: Finishing up the economy
 ## ## Create unemployment rate
 ## ## Measure change
 ########################################################
 
 unemployment <- read_csv("data-out/jobs.csv")
+ssi <- read_csv("data-out/ssi.csv")
+foreclosures <- read_csv("data-out/foreclosures.csv")
+
+economy <-
+  unemployment %>%
+  left_join(ssi) %>%
+  left_join(foreclosures)
 
 ########################################################
 ## Section 3: RWJ data
@@ -121,7 +127,7 @@ health <- read_csv("data-out/health.csv")
 ## ## 
 ########################################################
 
-
+despair <- read_csv("data-out/despair.csv")
 
 ########################################################
 ## Section 4: Nielson data
@@ -134,8 +140,6 @@ rallies_markets <- read_csv("data-out/rallies_DMA.csv")
 rallies_distances <- read_csv("data-out/rallies_distances.csv")
 
 ##
-
-names(rallies)
 
 rallies <-
   rallies_distances %>%
@@ -155,10 +159,12 @@ rallies <-
 independent <- 
   health %>%
   left_join(despair) %>%
-  left_join(changes) %>%
-  left_join(population) %>%
-  left_join(loquo)
-  
+  left_join(census) %>%
+  left_join(loquo) %>%
+  left_join(economy) %>%
+  left_join(rallies) %>%
+  drop_na(GEOID)
+
 ########################################################
 ## Section 6: Leip data
 ## ## Line up the left hand of the regression
@@ -188,6 +194,36 @@ regression %>%
   formattable::formattable()
 
 ##
+
+names(regression)
+
+regression <- 
+  counties %>%
+  mutate(continental = 1) %>%
+  right_join(regression) %>%
+  drop_na(continental) %>%
+  select(-continental) %>%
+  st_drop_geometry() %>%
+  as_tibble()
+
+regression <- 
+  regression %>%
+  mutate(collar = if_else(collar == "blue", 1, 0))
+
+lm(change_2012 ~ 
+     annual_pills + ssi_rate + dod_rate +
+     density + home + foreclosure_rate +
+     unemployment + earn + gini +
+     percent_fair_poor +
+     pcp_rate + dentist_rate +
+     collar + 
+     trump_rallies_dma_post_convention,
+   data = regression) %>%
+  summary()
+
+##
+
+unique(regression$collar)
 
 library(spdep)
 
