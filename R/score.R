@@ -24,7 +24,9 @@ full <-
   st_coordinates() %>%
   as_tibble() %>%
   bind_cols(full) %>%
-  mutate(naz = rowSums(is.na(full)))
+  mutate(naz = rowSums(is.na(full))) %>%
+  mutate(rally = case_when(trump_rallies_dma_post_convention > 1 ~ 1,
+                           trump_rallies_dma_post_convention < 2 ~ 0))
 
 ##
 
@@ -69,6 +71,7 @@ names(matching)
 ##
 
 matched <- matchit(rally ~ population + density + household_size +
+                     education +
                      median_age + pct_black + 
                      gini + home + earn + unemployment
                    ,
@@ -81,10 +84,26 @@ matched_nearest <- match.data(matched)
 
 ##
 
+logistically <- glm(rally ~ population + density + household_size +
+                      education +
+                      median_age + pct_black + 
+                      gini + home + earn + unemployment, 
+                    data = full, family = binomial(link = 'logit'))
+
+summary(logistically)
+
+scores <- predict(logistically, type = 'link')
+
+##
+
+full$score <- scores
+
+##
+
 matched <- matchit(rally ~ population + density + household_size +
+                     education +
                      median_age + pct_black + 
-                     gini + home + earn + unemployment
-                   ,
+                     gini + home + earn + unemployment,
                    data = matching, method = "nearest",
                    ratio = 2)
 
@@ -96,6 +115,81 @@ matched_optimal <- match.data(matched)
 
 with(matched_nearest, t.test(change_2012 ~ rally))
 with(matched_optimal, t.test(change_2012 ~ rally))
+
+##
+
+lm((change_2012 * 100) ~ rally, 
+   data = matched_nearest) %>%
+  summary()
+
+lm((change_2012 * 100) ~ rally, 
+   data = matched_optimal) %>%
+  summary()
+
+##
+
+matched_nearest %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  select(change_2012) %>%
+  plot()
+
+##
+
+matched_full <- 
+  matched_nearest %>%
+  left_join(full)
+
+names(matched_full)
+
+##
+
+lm((change_2012 * 100) ~ rally +
+     ssi_rate +
+     pcp_rate + percent_fair_poor +
+     change_pills + dod_rate, 
+   data = matched_full) %>%
+  summary()
+
+##
+
+lm((change_2012 * 100) ~ rally +
+     pct_moved_int_ch + pct_moved_int + 
+     pct_foreign_lat, 
+   data = matched_full) %>%
+  summary()
+
+##
+
+lm((change_2012 * 100) ~ rally +
+     rate_ch +
+     foreclosure_rate + gini + home + rent, 
+   data = matched_full) %>%
+  summary()
+
+##
+
+lm((change_2012 * 100) ~ rally +
+     rate_ch +
+     foreclosure_rate + gini + home + rent +
+     pct_moved_int_ch + pct_moved_int + 
+     pct_foreign_lat +
+     ssi_rate +
+     pcp_rate + percent_fair_poor +
+     change_pills + dod_rate, 
+   data = matched_full) %>%
+  summary()
+
+##
+
+
+
+
+
+
+
+
+
 
 #cor.test(data = freq[freq$uniqueID == "ep001",],
 #         ~ proportion + `avg`)

@@ -206,6 +206,13 @@ regression <-
   st_drop_geometry() %>%
   as_tibble()
 
+##
+
+regression %>%
+  write_csv("regression.csv")
+
+##
+
 regression <- 
   regression %>%
   mutate(collar = if_else(collar == "blue", 1, 0))
