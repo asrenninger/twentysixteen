@@ -7,7 +7,7 @@ regression <- read_csv("data-out/regression.csv")
 
 ## remove principal cities
 
-full <-
+scoring <-
   regression %>%
   group_by(DMA) %>%
   arrange(desc(population)) %>%
@@ -16,47 +16,52 @@ full <-
 
 ##
 
-full <- 
-  full %>%
+scoring <- 
+  scoring %>%
   left_join(counties) %>%
   st_as_sf() %>%
   st_centroid() %>%
   st_coordinates() %>%
   as_tibble() %>%
-  bind_cols(full) %>%
-  mutate(naz = rowSums(is.na(full))) %>%
+  bind_cols(scoring) %>%
   mutate(rally = case_when(trump_rallies_dma_post_convention > 1 ~ 1,
-                           trump_rallies_dma_post_convention < 2 ~ 0))
+                           trump_rallies_dma_post_convention < 2 ~ 0)) %>%
+  mutate(naz = rowSums(is.na(scoring))) %>%
+  drop_na(population)
 
 ##
 
-full$naz <- ntile(full$naz, 5)
+scoring$naz <- ntile(scoring$naz, 5)
 
 ##
 
-write_csv(full, "full.csv")
+write_csv(scoring, "scoring.csv")
 
 ##
 
 library(matrixStats)
+library(VIM)
 
 ##
 
-full_naz <- kNN(full, variable = names(full), dist_var = c("X", "Y", "population", "density"),
-                imp_var = FALSE,
-                numFun = weightedMean, weightDist = TRUE, k = 5)
+scoring_naz <- kNN(scoring, variable = names(scoring), dist_var = c("X", "Y", "population", "density"),
+                   imp_var = FALSE,
+                   numFun = weightedMean, weightDist = TRUE, k = 10)
 
 ##
 
-write_csv(full_NAr, "full_naz.csv")
+write_csv(scoring_naz, "full_naz.csv")
+
+##
+
+population <- read_csv("data-out/population.csv") %>%
+changes <- read_csv("data-out/changes.csv")
 
 ##
 
 matching <- 
-  full %>%
+  scoring %>%
   select(change_2012, names(census), d_trump:naz) %>%
-  mutate(rally = case_when(trump_rallies_dma_post_convention > 1 ~ 1,
-                           trump_rallies_dma_post_convention < 2 ~ 0)) %>%
   drop_na()
 
 ##
@@ -110,6 +115,10 @@ matched <- matchit(rally ~ population + density + household_size +
 ##
 
 matched_optimal <- match.data(matched)
+
+##
+
+summary(matched)
 
 ##
 
@@ -182,322 +191,189 @@ lm((change_2012 * 100) ~ rally +
 
 ##
 
+dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
+                  "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  mutate(STATEFP = if_else(STATEFP < 10, paste("0", STATEFP, sep = ""), paste(STATEFP)),
+         CNTYFP = if_else(CNTYFP < 100 & CNTYFP > 9, paste("0", CNTYFP, sep = ""),
+                          if_else(CNTYFP < 10, paste("00", CNTYFP, sep = ""), paste(CNTYFP)))) %>%
+  mutate(GEOID = paste(STATEFP, CNTYFP, sep = "")) %>%
+  mutate(GEOID = if_else(GEOID == "12025", "12086", GEOID)) %>%
+  select(DMA, GEOID)
 
+##
 
+outer <-
+  dma %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  group_by(DMA) %>%
+  summarise() %>%
+  filter(str_detect(DMA, "PHILADELPHIA")) %>%
+  st_buffer(1000) %>%
+  st_cast("LINESTRING")
 
+inner <- 
+  dma %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  group_by(DMA) %>%
+  summarise() %>%
+  filter(str_detect(DMA, "PHILADELPHIA")) %>%
+  st_buffer(-1000) %>%
+  st_cast("LINESTRING")
 
+middle <-
+  dma %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  group_by(DMA) %>%
+  summarise() %>%
+  filter(str_detect(DMA, "PHILADELPHIA"))  %>%
+  st_cast("MULTILINESTRING")
 
+##
 
+counties <- st_read("data-out/counties.geojson", crs = 102003)
 
+##
 
+ggplot() +
+  geom_sf(data = counties[touching, ], aes(), fill = NA, colour = 'green') +
+  geom_sf(data = outer, aes(), colour = 'black') +
+  geom_sf(data = inner, aes(), colour = 'red') +
+  geom_sf(data = middle, aes(), colour = 'blue')
 
-#cor.test(data = freq[freq$uniqueID == "ep001",],
-#         ~ proportion + `avg`)
-#
-#
+##
 
-full_NAr <- read_csv("full_NAr.csv")
+touching <- st_touches(counties, middle) %>% as_tibble() %>% pull(row.id)
 
-cor.test(data = matched_optimal[matched_optimal$uhoh == 1, ], ~ years_of_potential_life_lost_rate + percent_fair_poor)
-cor.test(data = matched_optimal, ~ density + gini)
-cor.test(data = matched_optimal, ~ white + blue)
+##
 
-scoring <- 
-  full_NAr %>%
-  clean_names() %>%
-  mutate(rally = case_when(trump_rallies > 1 ~ 1,
-                           trump_rallies < 2 ~ 0)) %>%
-  na.omit()
+library(tidyverse)
+library(sf)
 
-scoring_Filtered <- 
-  full_NAr %>%
-  clean_names() %>%
-  mutate(rally = case_when(trump_rallies > 1 ~ 1,
-                           trump_rallies < 2 ~ 0)) %>%
-  filter(population < 1500000) %>%
-  filter(population > 5000) %>%
-  na.omit()
+##
 
-matching_nearest <- matchit(rally ~ population +
-                              foreclosures + all + blue + white + dependency + overdoses +
-                              percent_18 + percent_65_and_over + percent_hispanic + percent_african_american +
-                              household_income + household_size + gini + percent_unemployed + graduation_rate + 
-                              percent_moved_abroad + percent_moved_nation + percent_foreign +
-                              years_of_potential_life_lost_rate + percent_fair_poor
-                            ,
-                            data = scoring, method = "nearest",
-                            ratio = 1)
+counties <- st_read("data-out/counties.geojson")
 
-matching_optimal <- matchit(rally ~ foreclosures + blue + white + dependency + overdoses +
-                              percent_18 + percent_65_and_over + population + percent_hispanic +
-                              household_income + household_size + gini + percent_unemployed + graduation_rate + 
-                              percent_moved_abroad + percent_moved_nation + percent_foreign +
-                              years_of_potential_life_lost_rate + percent_fair_poor
-                            ,
-                            data = scoring, method = "nearest",
-                            ratio = 1)
+##
 
-matching_filters <- matchit(rally ~ population +
-                              foreclosures + all + blue + white + dependency + overdoses +
-                              percent_18 + percent_65_and_over + percent_hispanic + percent_african_american +
-                              household_income + household_size + gini + percent_unemployed + graduation_rate + 
-                              percent_moved_abroad + percent_moved_nation + percent_foreign +
-                              years_of_potential_life_lost_rate + percent_fair_poor
-                            ,
-                            data = scoring_Filtered, method = "nearest",
-                            ratio = 1)
+visited <- 
+  rallies %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  group_by(DMA) %>%
+  summarise(trump_rallies = mean(trump_rallies_dma_post_convention),
+            clinton_rallies = mean(clinton_rallies_dma_post_convention)) %>%
+  filter(trump_rallies != 0 | clinton_rallies != 0) %>%
+  ungroup() %>%
+  mutate(dissolve = 1) %>%
+  group_by(dissolve) %>%
+  summarise() %>%
+  st_cast("MULTILINESTRING")
 
-matched_nearest <- match.data(matching_nearest)
-matched_optimal <- match.data(matching_optimal)
-matched_filters <- match.data(matching_filters)
+##
 
-with(matched_nearest, t.test(clinton_trump ~ rally))
-with(matched_optimal, t.test(clinton_trump ~ rally))
-with(matched_filters, t.test(clinton_trump ~ rally))
+boundary <-
+  counties %>% 
+  mutate(dissolve = 1) %>%
+  group_by(dissolve) %>%
+  summarise() %>%
+  st_cast("MULTILINESTRING")
 
-with(matched_nearest, t.test(trump_dl ~ rally))
-with(matched_nearest, t.test(clinton_dl ~ rally))
-with(matched_nearest, t.test(jill_stein ~ rally))
-with(matched_nearest, t.test(gary_johnson ~ rally))
+##
 
-with(matched_filters, t.test(participation ~ rally))
+plot(visited)
+plot(boundary)
 
-with(matched_nearest, t.test((clinton_trump / total) ~ rally))
-with(matched_optimal, t.test((clinton_trump / total) ~ rally))
-with(matched_filters, t.test((clinton_trump / total) ~ rally))
+##
 
-with(matched_optimal, t.test((clinton_trump / total) ~ rally))
-with(matched_optimal, t.test(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ rally))
+borders <- 
+  counties %>%
+  st_drop_geometry() %>%
+  slice(pull(as_tibble(st_touches(counties, visited)), row.id)) %>%
+  pull(GEOID)
 
-with(scoring, t.test(clinton_trump ~ rally))
+coastal <- 
+  counties %>%
+  st_drop_geometry() %>%
+  slice(pull(as_tibble(st_touches(counties, boundary)), row.id)) %>%
+  pull(GEOID)
 
-lm(clinton_trump ~ rally, data = scoring) %>% summary()
-lm(clinton_trump ~ rally, data = matched_optimal) %>% summary()
-lm(clinton_trump ~ rally + density + population, data = matched_nearest) %>% summary()
+##
 
-lm(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ rally, data = matched_filters) %>% summary()
-lm(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ rally + d_trump, data = matched_filters) %>% summary()
+regression <- read_csv("data-out/regression.csv")
 
-lm((clinton_trump / total) ~ rally, data = matched_filters) %>% summary()
-lm((clinton_trump / total) ~ rally + d_trump, data = matched_filters) %>% summary()
+##
 
-lm(clinton_trump ~ rally, data = scoring) %>% summary()
-lm(clinton_trump ~ rally, data = matched_optimal) %>% summary()
-lm(clinton_trump ~ rally, data = matched_nearest) %>% summary()
+rallied <- 
+  regression %>%
+  filter(GEOID %in% borders) %>%
+  filter(GEOID %in% coastal) %>%
+  mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0))
 
-lm(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ rally, data = scoring) %>% summary()
-lm(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ rally, data = matched_optimal) %>% summary()
-lm(((clinton_trump - gary_johnson - jill_stein - other_combined) / total) ~ 
-     rally +
-     d_trump
-   , 
-   data = matched_optimal) %>% summary()
+##
 
+rallied %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  select(change_2012) %>%
+  plot()
 
+##
 
-names(matched_optimal)
+library(stargazer)
 
-sum(matched_optimal$clinton_trump) /sum(matched_optimal$total)
-sum(matched_optimal$clinton_trump) /sum(matched_optimal$total)
+##
 
-matched_optimal_w <-
-  matched_optimal %>%
-  bind_rows(mutate(full_NAr, rally = 0, distance = 0) %>%
-              clean_names() %>%
-              filter(!fips %in% matched_optimal$fips) %>%
-              filter(uhoh == 1))
+with(rallied, t.test((margin * 100) ~ rallied))
 
+##
 
-var_names <- 
-  life %>%
-  clean_names() %>%
-  select(-fips, -state, -county, -cohort_size, -presence_of_violation) %>%
-  names()
+rallied %>%
+  drop_na(rallied) %>%
+  ggplot(aes(x = (change_2012 * 100))) +
+  geom_histogram(aes(fill = rallied), show.legend = FALSE) +
+  facet_wrap(~ rallied, nrow = 2)
 
-regdf <- 
-  full_NAr %>%
-  clean_names() %>%
-  select(uhoh, one_of(var_names))
+##
 
-regdf <- 
-  full_NAr %>%
-  clean_names() %>%
-  mutate(vote_share = clinton_trump / total) %>%
-  filter(clinton_trump < 500000) %>%
-  select(vote_share, one_of(var_names))
+md <- rallied %>% 
+  group_by(rallied) %>% 
+  summarize(N = length(change_2012), 
+            Mean = mean(change_2012 * 100),
+            SD = sd(change_2012 * 100),
+            SE = SD / sqrt(N)) 
 
-glm(uhoh ~ . , 
-    family = "binomial" (link = "logit"), 
-    data = regdf) %>% 
-  pR2()
+td <- rallied %>% 
+  summarize(rallied = "Total",
+            N = length(change_2012 * 100), 
+            Mean = mean(change_2012 * 100),
+            SD = sd(change_2012 * 100),
+            SE = SD/sqrt(N))
 
-lm(vote_share ~ . , 
-   family = "binomial" (link = "logit"), 
-   data = regdf) %>% 
-  summary()
+dd <- rbind(md,td)
 
-matched_optimal %>%
-  ggplot(aes(population)) +
-  geom_histogram()
+p <- 
+  ggplot(data = rallied, 
+         aes(y = change_2012 * 100, x = rallied, fill = rallied)) 
 
-matched_optimal %>%
-  filter(population > 1000 & population < 500000) %>%
-  ggplot(aes(population, clinton_trump)) +
-  geom_point(aes(colour = flips)) +
-  geom_smooth(method = lm)
+p + stat_summary(fun.y = "mean", 
+                 geom = "bar") 
 
+p + stat_summary(fun.y = "mean", 
+                 geom = "bar") + 
+  stat_summary(fun.data = "mean_cl_normal", 
+               geom = "errorbar", 
+               width = 0.1)
+##
 
-
-ggplot(matched_optimal_w %>% 
-         filter(clinton_trump < (min(clinton_trump) * -1)) %>%
-         mutate(dist = factor(ntile(d_trump, 3))), 
-       aes(d_trump, (clinton_trump / total))) +
-  geom_point(aes(colour = factor(uhoh))) +
-  geom_smooth(method = lm) +
-  theme_ver()
-  
-
-stargazer(lm(clinton_trump ~ rally, data = matched_optimal),
-          lm(clinton_trump ~ rally + distance, data = matched_optimal),
-          lm(clinton_trump ~ rally + distance + late_quartile, data = matched_optimal),
-          type = 'text')
-
-scoring_cov <- c("foreclosures", "blue", "white", "dependency", "overdoses",
-                 "percent_18", "percent_65_and_over", "density", "percent_hispanic",
-                 "household_income", "household_size", "gini", "percent_unemployed", "graduation_rate",
-                 "percent_moved_abroad", "percent_moved_nation", "percent_foreign",
-                 "years_of_potential_life_lost_rate", "percent_fair_poor")
-
-scoring %>%
-  group_by(rally) %>%
-  select(one_of(scoring_cov)) %>%
-  summarise_all(funs(mean(., na.rm = TRUE)))
-
-scoring %>%
-  select(one_of(scoring_cov)) %>%
-  map(~ t.test(.x ~ scoring$rally)$p.value) %>%
-  as_tibble() %>% 
-  gather() %>% 
-  mutate(signif = ifelse(value < .05, "significant", "ns")) %>% 
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(color = signif)) + 
-  coord_flip() +
-  ylab("p value")
-
-matched_nearest %>%
-  select(one_of(scoring_cov)) %>%
-  map(~ t.test(.x ~ matched_nearest$rally)$p.value) %>%
-  as_tibble() %>% 
-  gather() %>% 
-  mutate(signif = ifelse(value < .05, "significant", "ns")) %>% 
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(color = signif)) + 
-  coord_flip() +
-  ylab("p value")
-
-
-
-bind_rows(mutate(matched_nearest %>%
-                   select(one_of(scoring_cov)) %>%
-                   map(~ t.test(.x ~ matched_nearest$rally)$p.value) %>%
-                   as_tibble() %>% 
-                   gather() %>% 
-                   mutate(signif = ifelse(value < .05, "< 0.05", "> 0.05")), type = "matched"),
-          mutate(scoring %>%
-                   select(one_of(scoring_cov)) %>%
-                   map(~ t.test(.x ~ scoring$rally)$p.value) %>%
-                   as_tibble() %>% 
-                   gather() %>% 
-                   mutate(signif = ifelse(value < .05, "< 0.05", "> 0.05")), type = "unmatched")) %>%
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(color = signif)) + 
-  coord_flip() +
-  facet_wrap(~ type, nrow = 2) +
-  scale_colour_manual(values = c('#d7bc6a', '#2d2c41')) +
-  ylab("p value") +
-  xlab("variable") +
-  theme_ver()
-
-matched_nearest %>%
-  select(one_of(scoring_cov)) %>%
-  map(~ t.test(.x ~ matched_nearest$rally)) %>%
-  map_dbl(~ .x$p.value)
-
-test_tibble <-
-  tibble(
-    variable = scoring_cov,
-    mean_umatched_0 = 
-      scoring %>%
-      filter(rally == 0) %>%
-      select(one_of(scoring_cov)) %>%
-      map_dbl(~ mean(.x)) %>%
-      round(4),
-    mean_umatched_1 = 
-      scoring %>%
-      filter(rally == 1) %>%
-      select(one_of(scoring_cov)) %>%
-      map_dbl(~ mean(.x)) %>%
-      round(4),
-    p_value_u  = 
-      scoring %>%
-      select(one_of(scoring_cov)) %>% 
-      map(~ t.test(.x ~ scoring$rally)) %>%
-      map_dbl(~ .x$p.value) %>%
-      round(4),
-    mean_matched_0 = 
-      matched_nearest %>%
-      filter(rally == 0) %>%
-      select(one_of(scoring_cov)) %>%
-      map_dbl(~ mean(.x)) %>%
-      round(4),
-    mean_matched_1 = 
-      matched_nearest %>%
-      filter(rally == 1) %>%
-      select(one_of(scoring_cov)) %>%
-      map_dbl(~ mean(.x)) %>%
-      round(4),
-    p_value_m  = 
-      matched_nearest %>%
-      select(one_of(scoring_cov)) %>% 
-      map(~ t.test(.x ~ matched_nearest$rally)) %>%
-      map_dbl(~ .x$p.value) %>%
-      round(4)
-
-  )
-
-install.packages("formattable")
-library(formattable)
-
-test_tibble %>%
-  formattable(list(p_value_u = color_tile("transparent", '#2d2c41'), 
-                   p_value_m = color_tile("transparent", '#2d2c41')))
-
-names(test_tibble)
-
-with(full_NAr, t.test(trump_dl ~ uhoh))
-
-full_NAr %>%
-  clean_names() %>%
-  select(one_of(scoring_cov)) %>%
-  map(~ t.test(.x ~ full_NAr$uhoh)$p.value) %>%
-  as_tibble() %>% 
-  gather() %>% 
-  mutate(signif = ifelse(value < .05, "significant", "ns")) %>% 
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(color = signif)) + 
-  coord_flip() +
-  ylab("p value")
-
-full_NAr %>%
-  clean_names() %>%
-  mutate(winner = case_when(clinton_trump < 0 ~ 1, 
-                            clinton_trump > 0 ~ 0)) %>%
-  filter(winner == 1 | uhoh == 1) %>%
-  select("white", "blue", "all") %>%
-  map(~ t.test(.x ~ full_NAr %>%
-                 clean_names() %>%
-                 mutate(winner = case_when(clinton_trump < 0 ~ 1, 
-                                           clinton_trump > 0 ~ 0)) %>%
-                 filter(winner == 1 | uhoh == 1) %>%
-                 pull(uhoh)))
+rallied %>%
+  drop_na(rallied) %>%
+  ggplot(aes()) +
+  stat_summary(fun.y = "mean", 
+                   geom = "bar") + 
+  stat_summary(fun.data = "mean_cl_normal", 
+               geom = "errorbar", 
+               width = 0.1)
 

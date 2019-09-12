@@ -9,6 +9,12 @@ library(janitor)
 
 acs <- read_csv("data-out/batch.csv")
 
+##
+
+library(units)
+
+##
+
 population <- 
   counties %>%
   mutate(area = st_area(geometry)) %>%
@@ -222,15 +228,13 @@ lm(change_2012 ~
      density + home + foreclosure_rate +
      unemployment + earn + gini +
      percent_fair_poor +
-     pcp_rate + dentist_rate +
+     pcp_rate +
      collar + 
      trump_rallies_dma_post_convention,
    data = regression) %>%
   summary()
 
 ##
-
-unique(regression$collar)
 
 library(spdep)
 
@@ -260,13 +264,6 @@ for (i in 1:nrow(new)) {
   
 }
 
-
-rome_shape %>%
-  filter(str_detect(TITLE, paste(rome$birth_cty, collapse="|"))) %>%
-  mapview() +
-  geom_point(data = rome_shape,
-             aes(REPRLONG, REPRLAT), alpha = 0.25) +
-  geom_point(aes(colour = GEOCONTEXT), show.legend = FALSE)
 
 st_queen <- function(a, b = a) st_relate(a, b, pattern = "F***T****")
 
