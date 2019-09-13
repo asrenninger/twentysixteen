@@ -59,9 +59,17 @@ changes <- read_csv("data-out/changes.csv")
 
 ##
 
+covariates <- c("population", "household_size",
+                "education", "median_age", 
+                "percent_fair_poor", 
+                "pct_black", "pct_foreign", 
+                "gini", "home", "earn")
+
+##
+
 matching <- 
   scoring %>%
-  select(change_2012, names(census), d_trump:naz) %>%
+  select(change_2012, covariates, d_trump:naz) %>%
   drop_na()
 
 ##
@@ -101,16 +109,13 @@ scores <- predict(logistically, type = 'link')
 
 ##
 
-full$score <- scores
-
-##
-
-matched <- matchit(rally ~ population + density + household_size +
-                     education +
-                     median_age + pct_black + 
-                     gini + home + earn + unemployment,
+matched <- matchit(rally ~  household_size + population +
+                     education + median_age + 
+                     percent_fair_poor +
+                     pct_black + pct_foreign +
+                     gini + home + earn,
                    data = matching, method = "nearest",
-                   ratio = 2)
+                   ratio = 1)
 
 ##
 
@@ -122,8 +127,68 @@ summary(matched)
 
 ##
 
-with(matched_nearest, t.test(change_2012 ~ rally))
-with(matched_optimal, t.test(change_2012 ~ rally))
+names(scoring)
+sum(is.na(scoring$percent_fair_poor))
+
+
+##
+
+covariates <- c("population", "density", "household_size",
+                "education", "median_age", 
+                "percent_fair_poor", 
+                "pct_black", "pct_white", "pct_foreign", 
+                "gini", "home", "earn","unemployment")
+
+covariates <- c("population", "household_size",
+                "education", "median_age", 
+                "percent_fair_poor", 
+                "pct_black", "pct_foreign", 
+                "gini", "home", "earn")
+
+##
+
+matched_nearest %>%
+  select(one_of(covariates)) %>%
+  map(~ t.test(.x ~ matched_nearest$rally)$p.value) %>%
+  as_tibble() %>% 
+  gather() %>% 
+  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
+  ggplot(aes(x = reorder(key, value), y = value)) + 
+  geom_point(aes(), colour = '#555655', size = 5) + 
+  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
+  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
+  geom_text(aes(x = "population", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  coord_flip() +
+  ylab("p-value") +
+  xlab("") +
+  theme_ver() +
+  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
+
+matched_optimal %>%
+  select(one_of(covariates)) %>%
+  map(~ t.test(.x ~ matched_optimal$rally)$p.value) %>%
+  as_tibble() %>% 
+  gather() %>% 
+  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
+  ggplot(aes(x = reorder(key, value), y = value)) + 
+  geom_point(aes(), colour = '#555655', size = 5) + 
+  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
+  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
+  geom_text(aes(x = "population", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  coord_flip() +
+  ylab("p-value") +
+  xlab("") +
+  theme_ver() +
+  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
+
+ggplot(matched_optimal) +
+  geom_histogram(aes(percent_fair_poor, fill = rally)) +
+  facet_wrap(~ rally, nrow = 2)
+
+##
+
+with(matched_nearest, t.test((change_2012 * 100) ~ rally))
+with(matched_optimal, t.test((change_2012 * 100) ~ rally))
 
 ##
 
@@ -147,7 +212,7 @@ matched_nearest %>%
 
 matched_full <- 
   matched_nearest %>%
-  left_join(full)
+  left_join(scoring)
 
 names(matched_full)
 
@@ -163,8 +228,8 @@ lm((change_2012 * 100) ~ rally +
 ##
 
 lm((change_2012 * 100) ~ rally +
-     pct_moved_int_ch + pct_moved_int + 
-     pct_foreign_lat, 
+     pct_moved_int + 
+     pct_foreign_lat + pct_foreign, 
    data = matched_full) %>%
   summary()
 
@@ -188,6 +253,10 @@ lm((change_2012 * 100) ~ rally +
      change_pills + dod_rate, 
    data = matched_full) %>%
   summary()
+
+##
+
+installed.packages() %>% as_tibble() %>% pull(Package) %>% as_tibble () %>%write_csv("packages.txt")
 
 ##
 
@@ -308,9 +377,9 @@ regression <- read_csv("data-out/regression.csv")
 
 rallied <- 
   regression %>%
+  mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0)) %>%
   filter(GEOID %in% borders) %>%
-  filter(GEOID %in% coastal) %>%
-  mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0))
+  filter(GEOID %in% coastal | rallied == 0) 
 
 ##
 
@@ -322,11 +391,30 @@ rallied %>%
 
 ##
 
+ggplot() +
+  geom_sf(data = boundary %>%
+            st_set_crs(102003),
+          aes(), alpha = 0.5) +
+  geom_sf(data = rallied %>%
+            left_join(counties) %>%
+            st_as_sf() %>%
+            st_set_crs(102003),
+          aes(fill = change_2012),
+          colour = NA, size = 0,
+          show.legend = FALSE) +
+  geom_sf(data = visited %>%
+            st_set_crs(102003),
+          aes(),
+          colour = '#7b6576') +
+  theme_map()
+
+##
+
 library(stargazer)
 
 ##
 
-with(rallied, t.test((margin * 100) ~ rallied))
+with(rallied, t.test((change_2012 * 100) ~ rallied))
 
 ##
 
@@ -346,34 +434,65 @@ md <- rallied %>%
             SE = SD / sqrt(N)) 
 
 td <- rallied %>% 
+  drop_na(rallied) %>%
   summarize(rallied = "Total",
             N = length(change_2012 * 100), 
             Mean = mean(change_2012 * 100),
             SD = sd(change_2012 * 100),
-            SE = SD/sqrt(N))
+            SE = SD / sqrt(N))
 
 dd <- rbind(md,td)
 
-p <- 
-  ggplot(data = rallied, 
-         aes(y = change_2012 * 100, x = rallied, fill = rallied)) 
+formattable::formattable(drop_na(dd, rallied))
 
-p + stat_summary(fun.y = "mean", 
-                 geom = "bar") 
 
-p + stat_summary(fun.y = "mean", 
-                 geom = "bar") + 
+ggplot(data = rallied %>%
+         drop_na(rallied) %>%
+         mutate(rallied = if_else(rallied == 1, "visited", "not visited")), 
+       aes(y = change_2012 * 100, x = factor(rallied), fill = factor(rallied))) + 
+  stat_summary(fun.y = "mean", 
+               geom = "bar") + 
+  stat_summary(fun.y = "mean", 
+               geom = "bar") + 
   stat_summary(fun.data = "mean_cl_normal", 
                geom = "errorbar", 
-               width = 0.1)
+               width = 0.1) +
+  scale_fill_manual(values = c("#67b1b8", "#f05154"), 
+                    guide = 'none') +
+  xlab("") +
+  ylab("% change from 2012 to 2016") +
+  theme_ver() +
+  ggsave("inside-outside.png", height = 8, width = 10, dpi = 300)
+
 ##
 
 rallied %>%
-  drop_na(rallied) %>%
-  ggplot(aes()) +
-  stat_summary(fun.y = "mean", 
-                   geom = "bar") + 
-  stat_summary(fun.data = "mean_cl_normal", 
-               geom = "errorbar", 
-               width = 0.1)
+  select(one_of(covariates, "density")) %>%
+  map(~ t.test(.x ~ rallied$rallied)$p.value) %>%
+  as_tibble() %>% 
+  gather() %>% 
+  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
+  ggplot(aes(x = reorder(key, value), y = value)) + 
+  geom_point(aes(), colour = '#555655', size = 5) + 
+  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
+  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
+  geom_text(aes(x = "density", y = 0.5, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  coord_flip() +
+  ylab("p-value") +
+  xlab("") +
+  theme_ver() +
+  ggsave("test.png", height = 8, width = 10, dpi = 300)
 
+hrallied %>%
+  drop_na(rallied) %>%
+  ggplot(aes(x = pct_foreign)) +
+  geom_histogram(aes(fill = rallied)) +
+  facet_wrap(~ rallied, nrow = 2)
+
+rallied %>%
+  group_by(rallied) %>%
+  summarise(m = mean(pct_foreign),
+            s = sd(pct_foreign),
+            v = var(pct_foreign))
+
+with(rallied, t.test(pct_foreign ~ rallied))
