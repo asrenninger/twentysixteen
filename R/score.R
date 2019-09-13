@@ -65,6 +65,12 @@ covariates <- c("population", "household_size",
                 "pct_black", "pct_foreign", 
                 "gini", "home", "earn")
 
+covariates <- c("household_size", "density",
+                "education", "median_age", 
+                "percent_fair_poor", "years_of_potential_life_lost_rate",
+                "pct_black", "pct_foreign", "unemployed",
+                "gini", "home", "earn", "foreclosure_rate")
+
 ##
 
 matching <- 
@@ -109,11 +115,11 @@ scores <- predict(logistically, type = 'link')
 
 ##
 
-matched <- matchit(rally ~  household_size + population +
+matched <- matchit(rally ~  density + household_size +
                      education + median_age + 
-                     percent_fair_poor +
+                     percent_fair_poor + years_of_potential_life_lost_rate +
                      pct_black + pct_foreign +
-                     gini + home + earn,
+                     gini + home + earn + foreclosure_rate,
                    data = matching, method = "nearest",
                    ratio = 1)
 
@@ -139,7 +145,7 @@ covariates <- c("population", "density", "household_size",
                 "pct_black", "pct_white", "pct_foreign", 
                 "gini", "home", "earn","unemployment")
 
-covariates <- c("population", "household_size",
+covariates <- c("household_size",
                 "education", "median_age", 
                 "percent_fair_poor", 
                 "pct_black", "pct_foreign", 
@@ -174,7 +180,7 @@ matched_optimal %>%
   geom_point(aes(), colour = '#555655', size = 5) + 
   geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
   geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
-  geom_text(aes(x = "population", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  geom_text(aes(x = "unemployed", y = 0.5, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
   coord_flip() +
   ylab("p-value") +
   xlab("") +
@@ -184,6 +190,41 @@ matched_optimal %>%
 ggplot(matched_optimal) +
   geom_histogram(aes(percent_fair_poor, fill = rally)) +
   facet_wrap(~ rally, nrow = 2)
+
+##
+
+names(matched_full)
+
+covariates <- c("household_size",
+                "education", "median_age", 
+                "percent_fair_poor", "years_of_potential_life_lost_rate",
+                "pct_black", "pct_foreign", "unemployed",
+                "gini", "home", "earn", "foreclosure_rate")
+
+regression %>%
+  left_join(counties) %>%
+  st_as_sf() %>%
+  select(foreclosure_rate) %>%
+  plot()
+
+##
+
+matched_full %>%
+  select(one_of(covariates)) %>%
+  map(~ t.test(.x ~ matched_full$rally)$p.value) %>%
+  as_tibble() %>% 
+  gather() %>% 
+  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
+  ggplot(aes(x = reorder(key, value), y = value)) + 
+  geom_point(aes(), colour = '#555655', size = 5) + 
+  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
+  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
+  geom_text(aes(x = "foreclosure_rate", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  coord_flip() +
+  ylab("p-value") +
+  xlab("") +
+  theme_ver() +
+  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
 
 ##
 
@@ -253,10 +294,6 @@ lm((change_2012 * 100) ~ rally +
      change_pills + dod_rate, 
    data = matched_full) %>%
   summary()
-
-##
-
-installed.packages() %>% as_tibble() %>% pull(Package) %>% as_tibble () %>%write_csv("packages.txt")
 
 ##
 
@@ -495,4 +532,8 @@ rallied %>%
             s = sd(pct_foreign),
             v = var(pct_foreign))
 
-with(rallied, t.test(pct_foreign ~ rallied))
+with(matched_full, t.test(dentist_rate ~ rally))
+
+regression %>%
+  group_by(flips) %>%
+  summarise(n = n())
