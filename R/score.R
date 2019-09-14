@@ -5,7 +5,7 @@ library(broom)
 
 regression <- read_csv("data-out/regression.csv")
 
-## remove principal cities
+## 
 
 scoring <-
   regression %>%
@@ -54,11 +54,6 @@ write_csv(scoring_naz, "full_naz.csv")
 
 ##
 
-population <- read_csv("data-out/population.csv") %>%
-changes <- read_csv("data-out/changes.csv")
-
-##
-
 covariates <- c("population", "household_size",
                 "education", "median_age", 
                 "percent_fair_poor", 
@@ -75,7 +70,7 @@ covariates <- c("household_size", "density",
 
 matching <- 
   scoring %>%
-  select(change_2012, covariates, d_trump:naz) %>%
+  select(GEOID, change_2012, covariates, d_trump:naz) %>%
   drop_na()
 
 ##
@@ -187,31 +182,9 @@ matched_optimal %>%
   theme_ver() +
   ggsave("p-value.png", height = 8, width = 10, dpi = 300)
 
-ggplot(matched_optimal) +
-  geom_histogram(aes(percent_fair_poor, fill = rally)) +
-  facet_wrap(~ rally, nrow = 2)
-
-##
-
-names(matched_full)
-
-covariates <- c("household_size",
-                "education", "median_age", 
-                "percent_fair_poor", "years_of_potential_life_lost_rate",
-                "pct_black", "pct_foreign", "unemployed",
-                "gini", "home", "earn", "foreclosure_rate")
-
-regression %>%
-  left_join(counties) %>%
-  st_as_sf() %>%
-  select(foreclosure_rate) %>%
-  plot()
-
-##
-
-matched_full %>%
+scoring %>%
   select(one_of(covariates)) %>%
-  map(~ t.test(.x ~ matched_full$rally)$p.value) %>%
+  map(~ t.test(.x ~ scoring$rally)$p.value) %>%
   as_tibble() %>% 
   gather() %>% 
   mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
@@ -219,12 +192,24 @@ matched_full %>%
   geom_point(aes(), colour = '#555655', size = 5) + 
   geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
   geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
-  geom_text(aes(x = "foreclosure_rate", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  geom_text(aes(x = "unemployed", y = 0.5, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
   coord_flip() +
   ylab("p-value") +
   xlab("") +
   theme_ver() +
   ggsave("p-value.png", height = 8, width = 10, dpi = 300)
+
+##
+
+with(matched_optimal, t.test(pcp_rate ~ rally))
+
+##
+
+covariates <- c("household_size",
+                "education", "median_age", 
+                "percent_fair_poor", "years_of_potential_life_lost_rate",
+                "pct_black", "pct_foreign", "unemployed",
+                "gini", "home", "earn", "foreclosure_rate")
 
 ##
 
@@ -240,33 +225,25 @@ lm((change_2012 * 100) ~ rally,
 lm((change_2012 * 100) ~ rally, 
    data = matched_optimal) %>%
   summary()
-
-##
-
-matched_nearest %>%
-  left_join(counties) %>%
-  st_as_sf() %>%
-  select(change_2012) %>%
-  plot()
-
+          
 ##
 
 matched_full <- 
-  matched_nearest %>%
+  matched_optimal %>%
   left_join(scoring)
-
-names(matched_full)
 
 ##
 
 lm((change_2012 * 100) ~ rally +
-     ssi_rate +
-     pcp_rate + percent_fair_poor +
+     ssi_rate + 
+     pcp_rate + dentist_rate +
      change_pills + dod_rate, 
    data = matched_full) %>%
   summary()
 
 ##
+
+glimpse(matched_full)
 
 lm((change_2012 * 100) ~ rally +
      pct_moved_int + 
@@ -277,21 +254,23 @@ lm((change_2012 * 100) ~ rally +
 ##
 
 lm((change_2012 * 100) ~ rally +
-     rate_ch +
-     foreclosure_rate + gini + home + rent, 
+     rate_ch + 
+     earn_ch +
+     predatory_loans, 
    data = matched_full) %>%
   summary()
 
 ##
 
 lm((change_2012 * 100) ~ rally +
-     rate_ch +
-     foreclosure_rate + gini + home + rent +
-     pct_moved_int_ch + pct_moved_int + 
-     pct_foreign_lat +
-     ssi_rate +
-     pcp_rate + percent_fair_poor +
-     change_pills + dod_rate, 
+     ssi_rate + 
+     pcp_rate + dentist_rate +
+     change_pills + dod_rate +
+     pct_moved_int + 
+     pct_foreign_lat + pct_foreign +
+     rate_ch + 
+     earn_ch +
+     predatory_loans, 
    data = matched_full) %>%
   summary()
 
@@ -537,3 +516,24 @@ with(matched_full, t.test(dentist_rate ~ rally))
 regression %>%
   group_by(flips) %>%
   summarise(n = n())
+
+matched_full %>%
+  select(rally, covariates) %>%
+  mutate(density = log(density),
+         unemployment = log(unemployed)) %>%
+  gather(variable, value, household_size:foreclosure_rate) %>%
+  ggplot() +
+  geom_density(aes(value, fill = factor(rally)), alpha = 0.5) +
+  facet_wrap(~ variable, scales = 'free')
+
+scoring %>%
+  select(rally, covariates) %>%
+  mutate(density = log(density),
+         unemployment = log(unemployed)) %>%
+  gather(variable, value, household_size:foreclosure_rate) %>%
+  ggplot() +
+  geom_density(aes(value, fill = factor(rally)), alpha = 0.5) +
+  facet_wrap(~ variable, scales = 'free')
+  
+
+
