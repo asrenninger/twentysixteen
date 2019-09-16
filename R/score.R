@@ -50,15 +50,29 @@ scoring_naz <- kNN(scoring, variable = names(scoring), dist_var = c("X", "Y", "p
 
 ##
 
-write_csv(scoring_naz, "full_naz.csv")
+write_csv(scoring_naz, "scoring_naz.csv")
 
 ##
 
-covariates <- c("population", "household_size",
-                "education", "median_age", 
-                "percent_fair_poor", 
-                "pct_black", "pct_foreign", 
-                "gini", "home", "earn")
+scoring %>%
+  select(one_of(covariates)) %>%
+  map(~ t.test(.x ~ scoring$rally)$p.value) %>%
+  as_tibble() %>% 
+  gather() %>% 
+  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
+  ggplot(aes(x = reorder(key, value), y = value)) + 
+  geom_point(aes(), colour = '#555655', size = 5) + 
+  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
+  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
+  geom_text(aes(x = "percent_fair_poor", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  scale_y_continuous(breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  coord_flip() +
+  ylab("p-value") +
+  xlab("") +
+  theme_ver() +
+  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
+
+##
 
 covariates <- c("household_size", "density",
                 "education", "median_age", 
@@ -70,8 +84,13 @@ covariates <- c("household_size", "density",
 
 matching <- 
   scoring %>%
-  select(GEOID, change_2012, covariates, d_trump:naz) %>%
+  select(GEOID, change_2008, change_2012, covariates, d_trump:naz) %>%
   drop_na()
+
+matching %>%
+  mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0)) %>%
+  group_by(rallied) %>%
+  summarise(n = n())
 
 ##
 
@@ -81,32 +100,6 @@ library(optmatch)
 ##
 
 names(matching)
-
-##
-
-matched <- matchit(rally ~ population + density + household_size +
-                     education +
-                     median_age + pct_black + 
-                     gini + home + earn + unemployment
-                   ,
-                   data = matching, method = "nearest",
-                   ratio = 1)
-
-##
-
-matched_nearest <- match.data(matched)
-
-##
-
-logistically <- glm(rally ~ population + density + household_size +
-                      education +
-                      median_age + pct_black + 
-                      gini + home + earn + unemployment, 
-                    data = full, family = binomial(link = 'logit'))
-
-summary(logistically)
-
-scores <- predict(logistically, type = 'link')
 
 ##
 
@@ -120,7 +113,7 @@ matched <- matchit(rally ~  density + household_size +
 
 ##
 
-matched_optimal <- match.data(matched)
+matched <- match.data(matched)
 
 ##
 
@@ -128,46 +121,9 @@ summary(matched)
 
 ##
 
-names(scoring)
-sum(is.na(scoring$percent_fair_poor))
-
-
-##
-
-covariates <- c("population", "density", "household_size",
-                "education", "median_age", 
-                "percent_fair_poor", 
-                "pct_black", "pct_white", "pct_foreign", 
-                "gini", "home", "earn","unemployment")
-
-covariates <- c("household_size",
-                "education", "median_age", 
-                "percent_fair_poor", 
-                "pct_black", "pct_foreign", 
-                "gini", "home", "earn")
-
-##
-
-matched_nearest %>%
+matched %>%
   select(one_of(covariates)) %>%
-  map(~ t.test(.x ~ matched_nearest$rally)$p.value) %>%
-  as_tibble() %>% 
-  gather() %>% 
-  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(), colour = '#555655', size = 5) + 
-  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
-  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
-  geom_text(aes(x = "population", y = 0.2, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
-  coord_flip() +
-  ylab("p-value") +
-  xlab("") +
-  theme_ver() +
-  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
-
-matched_optimal %>%
-  select(one_of(covariates)) %>%
-  map(~ t.test(.x ~ matched_optimal$rally)$p.value) %>%
+  map(~ t.test(.x ~ matched$rally)$p.value) %>%
   as_tibble() %>% 
   gather() %>% 
   mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
@@ -176,23 +132,7 @@ matched_optimal %>%
   geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
   geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
   geom_text(aes(x = "unemployed", y = 0.5, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
-  coord_flip() +
-  ylab("p-value") +
-  xlab("") +
-  theme_ver() +
-  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
-
-scoring %>%
-  select(one_of(covariates)) %>%
-  map(~ t.test(.x ~ scoring$rally)$p.value) %>%
-  as_tibble() %>% 
-  gather() %>% 
-  mutate(signif = ifelse(value < .05, "significant", "insignificant")) %>% 
-  ggplot(aes(x = reorder(key, value), y = value)) + 
-  geom_point(aes(), colour = '#555655', size = 5) + 
-  geom_segment(aes(xend = reorder(key, value), yend = 0), colour = '#555655') +
-  geom_hline(yintercept = 0.05, colour = '#7b6576', size = 1, linetype = 3) +
-  geom_text(aes(x = "unemployed", y = 0.5, label = "line marks 0.05 threshold"), hjust = 0, colour = '#7b6576') + 
+  scale_y_continuous(breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
   coord_flip() +
   ylab("p-value") +
   xlab("") +
@@ -201,35 +141,18 @@ scoring %>%
 
 ##
 
-with(matched_optimal, t.test(pcp_rate ~ rally))
-
-##
-
-covariates <- c("household_size",
-                "education", "median_age", 
-                "percent_fair_poor", "years_of_potential_life_lost_rate",
-                "pct_black", "pct_foreign", "unemployed",
-                "gini", "home", "earn", "foreclosure_rate")
-
-##
-
-with(matched_nearest, t.test((change_2012 * 100) ~ rally))
-with(matched_optimal, t.test((change_2012 * 100) ~ rally))
+with(matched, t.test((change_2012 * 100) ~ rally))
 
 ##
 
 lm((change_2012 * 100) ~ rally, 
-   data = matched_nearest) %>%
-  summary()
-
-lm((change_2012 * 100) ~ rally, 
-   data = matched_optimal) %>%
+   data = matched) %>%
   summary()
           
 ##
 
 matched_full <- 
-  matched_optimal %>%
+  matched %>%
   left_join(scoring)
 
 ##
@@ -242,8 +165,6 @@ lm((change_2012 * 100) ~ rally +
   summary()
 
 ##
-
-glimpse(matched_full)
 
 lm((change_2012 * 100) ~ rally +
      pct_moved_int + 
@@ -273,6 +194,8 @@ lm((change_2012 * 100) ~ rally +
      predatory_loans, 
    data = matched_full) %>%
   summary()
+
+view(regression)
 
 ##
 
@@ -319,14 +242,6 @@ middle <-
 ##
 
 counties <- st_read("data-out/counties.geojson", crs = 102003)
-
-##
-
-ggplot() +
-  geom_sf(data = counties[touching, ], aes(), fill = NA, colour = 'green') +
-  geom_sf(data = outer, aes(), colour = 'black') +
-  geom_sf(data = inner, aes(), colour = 'red') +
-  geom_sf(data = middle, aes(), colour = 'blue')
 
 ##
 
@@ -391,6 +306,18 @@ regression <- read_csv("data-out/regression.csv")
 
 ##
 
+regression %>%
+  distinct(DMA) %>%
+  pull() %>%
+  unique()
+
+regression %>%
+  mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0)) %>%
+  group_by(rallied) %>%
+  summarise(n = n())
+
+##
+
 rallied <- 
   regression %>%
   mutate(rallied = if_else(trump_rallies_dma_post_convention > 0, 1, 0)) %>%
@@ -434,14 +361,6 @@ with(rallied, t.test((change_2012 * 100) ~ rallied))
 
 ##
 
-rallied %>%
-  drop_na(rallied) %>%
-  ggplot(aes(x = (change_2012 * 100))) +
-  geom_histogram(aes(fill = rallied), show.legend = FALSE) +
-  facet_wrap(~ rallied, nrow = 2)
-
-##
-
 md <- rallied %>% 
   group_by(rallied) %>% 
   summarize(N = length(change_2012), 
@@ -460,7 +379,6 @@ td <- rallied %>%
 dd <- rbind(md,td)
 
 formattable::formattable(drop_na(dd, rallied))
-
 
 ggplot(data = rallied %>%
          drop_na(rallied) %>%
@@ -497,13 +415,7 @@ rallied %>%
   ylab("p-value") +
   xlab("") +
   theme_ver() +
-  ggsave("test.png", height = 8, width = 10, dpi = 300)
-
-hrallied %>%
-  drop_na(rallied) %>%
-  ggplot(aes(x = pct_foreign)) +
-  geom_histogram(aes(fill = rallied)) +
-  facet_wrap(~ rallied, nrow = 2)
+  ggsave("p-value.png", height = 8, width = 10, dpi = 300)
 
 rallied %>%
   group_by(rallied) %>%
@@ -511,7 +423,7 @@ rallied %>%
             s = sd(pct_foreign),
             v = var(pct_foreign))
 
-with(matched_full, t.test(dentist_rate ~ rally))
+with(matched_full, t.test(change_2008 ~ rally))
 
 regression %>%
   group_by(flips) %>%
@@ -534,6 +446,74 @@ scoring %>%
   ggplot() +
   geom_density(aes(value, fill = factor(rally)), alpha = 0.5) +
   facet_wrap(~ variable, scales = 'free')
-  
 
+##
+
+toy <- 
+  matched_full %>%
+  mutate(diff_n_diff = change_2008 - change_2012) %>%
+  mutate(change_2008 = (change_2012 - change_2008) * 100)
+
+##
+
+with(toy, t.test(diff_n_diff ~ rally))
+
+lm((change_2012 * 100) ~ rally,
+   data = toy) %>%
+  summary()
+
+lm((change_2012 * 100) ~ rally + change_2008,
+   data = toy) %>%
+  summary()
+
+##
+
+toy <- 
+  rallied %>%
+  mutate(diff_n_diff = change_2008 - change_2012) %>%
+  mutate(change_2008 = (change_2012 - change_2008) * 100)
+
+##
+
+toy %>%
+  filter(GEOID != 36081 & GEOID != 36005 & GEOID != 36047) %>%
+  with(., t.test(diff_n_diff ~ rallied))
+
+##
+
+with(toy, t.test(diff_n_diff ~ rallied))
+
+lm((change_2012 * 100) ~ rallied,
+   data = toy) %>%
+  summary()
+
+lm((change_2012 * 100) ~ rallied + change_2008,
+   data = toy) %>%
+  summary()
+
+glimpse(toy)
+
+ggplot(as_tibble(toy)) +
+  geom_point(aes(x = d_trump, y = diff_n_diff, colour = factor(rallied))) +
+  geom_smooth(aes(x = d_trump, y = diff_n_diff, colour = factor(rallied)),
+              method = lm)
+
+lm((change_2012 * 100) ~ rallied + d_trump,
+   data = toy) %>%
+  summary()
+
+ggplot(as_tibble(toy)) +
+  geom_point(aes(x = d_trump, y = change_2012, colour = factor(rally))) +
+  geom_smooth(aes(x = d_trump, y = change_2012, colour = factor(rally)),
+              method = lm)
+
+scoring %>%
+  group_by(rally) %>%
+  summarise(n = n())
+
+##
+
+rallied %>%
+  group_by(rallied) %>%
+  summarise(n = n())
 

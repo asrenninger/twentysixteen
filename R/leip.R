@@ -41,6 +41,20 @@ write_csv(votes, "votes.csv")
 
 ##
 
+read_csv("data-out/votes.csv") %>% 
+  mutate(d = democrat_raw - republican_raw) %>%
+  filter(year == 2016) %>%
+  select(d, democrat_raw, republican_raw, total, GEOID, county, state) %>%
+  mutate(pct_1 = democrat_raw / total,
+         pct_2 = d / total) %>%
+  arrange(desc(d))
+
+vote <- read_csv("data-out/votes.csv") %>%
+  filter(year == 2016) %>%
+  select(GEOID, democrat_raw, republican_raw, total)
+
+##
+
 test <-
   votes %>%
   select(GEOID, year, total, democrat_raw, republican_raw, third_raw, other_raw) %>%
@@ -79,7 +93,7 @@ margins <-
          margin_2012 = democrat_lagged - republican_lagged,
          margin_2008 = democrat_lagged_2008 - republican_lagged_2008) %>%
   mutate(change_2012 = margin - margin_2012,
-         change_2008 = margin - margin_2008) %>%
+         change_2008 = margin_2012 - margin_2008) %>%
   select(GEOID, margin, change_2008, change_2012, margin_2008, margin_2012)
 
 ##
@@ -114,4 +128,3 @@ flips <-
 margins %>%
   left_join(flips) %>%
   write_csv("left.csv")
-
