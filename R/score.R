@@ -1,3 +1,9 @@
+########################################################
+## Section 1: Propensity Score Matching
+## ## Create a data set sans NA values
+## ## perform scoring and matching
+########################################################
+
 library(janitor)
 library(broom)
 
@@ -197,7 +203,11 @@ lm((change_2012 * 100) ~ rally +
 
 view(regression)
 
-##
+########################################################
+## Section 1: Discontinuity Test
+## ## Grab counties on both sides of media markets
+## ## Test the difference
+########################################################
 
 dma <- read_delim("https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/IVXEHT/A56RIW", 
                   "\t", escape_double = FALSE, trim_ws = TRUE) %>%
@@ -447,7 +457,11 @@ scoring %>%
   geom_density(aes(value, fill = factor(rally)), alpha = 0.5) +
   facet_wrap(~ variable, scales = 'free')
 
-##
+########################################################
+## Section 3: Repeat with difference-in-differences
+## ## Propensity scoring and matching
+## ## Tests of discontinuity
+########################################################
 
 toy <- 
   matched_full %>%
