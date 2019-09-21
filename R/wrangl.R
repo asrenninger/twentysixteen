@@ -219,55 +219,9 @@ regression %>%
 
 ##
 
-regression <- 
-  regression %>%
-  mutate(collar = if_else(collar == "blue", 1, 0))
-
-lm(change_2012 ~ 
-     annual_pills + ssi_rate + dod_rate +
-     density + home + foreclosure_rate +
-     unemployment + earn + gini +
-     percent_fair_poor +
-     pcp_rate +
-     collar + 
-     trump_rallies_dma_post_convention,
-   data = regression) %>%
-  summary()
-
-##
-
-library(spdep)
-
-counties %>% poly2nb()
-
-?poly2nb
-
-primed <- counties[-c(1931, 2003, 2639), ] %>% as('Spatial')
-neighb <- poly2nb(primed, queen = TRUE)
-weight <- nb2listw(neighb, style = 'W', zero.policy = FALSE)
-
-plot(weight, coordinates(primed))
-
-coords <- coordinates(primed)
-
-relations <- tibble()
-
-new <- counties[-c(1931, 2003, 2639), ]
-
-for (i in 1:nrow(new)) {
- 
-  iteration <- new %>% slice(i)
-  
-  relation <- mutate(iteration, neighbours = list(weight$neighbours[[i]]))
-  
-  relations <- bind_rows(relations, relations)
-  
-}
-
-
-st_queen <- function(a, b = a) st_relate(a, b, pattern = "F***T****")
-
-?st_relate
+touching <- 
+  st_touches(counties) %>%
+  as_tibble()
 
 coords <- 
   counties %>%
@@ -276,42 +230,68 @@ coords <-
   as_tibble() %>%
   rownames_to_column() %>%
   rename(neighbours = rowname)
-           
-neighbours <- 
-  neighborpoints %>% 
-  as_tibble() %>%
-  set_names(c("rowname", "neighbours")) %>%
-  mutate(rowname = as.character(rowname),
-         neighbours = as.character(neighbours)) %>%
-  left_join(rownames_to_column(counties)) %>%
-  filter(str_detect(str_sub(GEOID, 1, 2), "10|42|34|09|07|05|47")) %>%
-  st_as_sf() %>%
-  st_centroid() %>%
-  left_join(coords)
 
-states <- crosswalk %>% 
-  filter(!str_detect(state_code, "15|02|60|66|69|72|78|74")) %>% 
-  pull(state_code) %>%
-  unique()
+##
 
-test <- 
-  neighbours %>%
-  st_coordinates() %>%
-  as_tibble() %>%
-  bind_cols(neighbours) %>%
-  select(-geometry) %>%
-  mutate(start = glue("{X}, {Y}"),
-         end = glue("{X1}, {Y1}")) %>%
-  mutate(path = glue("{X},{Y} - {X1}, {Y1}")) %>%
-  select(GEOID, path, start, end) %>%
-  gather(position, coordinates, start:end) %>%
-  separate(coordinates, into = c("X", "Y"), sep = ", ")
+library(glue)
 
-ggplot(data = test) +
-  geom_line(aes(x = X, y = Y, group = path),
-            colour = 'grey40') +
+##
+
+ordest <- 
+  touching %>%
+  mutate(neighbours = as.character(row.id)) %>%
+  left_join(coords) %>%
+  rename(X1 = X,
+         Y1 = Y) %>%
+  mutate(neighbours = as.character(col.id)) %>%
+  left_join(coords) %>%
+  rename(X2 = X,
+         Y2 = Y) %>%
+  select(X1:Y2) %>%
+  mutate(path = glue("{X1} {Y1} - {X2} {Y2}")) %>%
+  mutate(start = glue("{X1} - {Y1}"),
+         finish = glue("{X2} - {Y2}")) %>%
+  select(path, start, finish) %>%
+  group_by(path) %>%
+  gather(position, coordinates, start:finish) %>%
+  separate(coordinates, sep = " - ", into = c("X", "Y"), remove = FALSE) %>%
+  mutate(X = as.numeric(X),
+         Y = as.numeric(Y)) %>%
+  ungroup()
+
+ordest <- 
+  touching %>%
+  mutate(neighbours = as.character(row.id)) %>%
+  left_join(coords) %>%
+  rename(X1 = X,
+         Y1 = Y) %>%
+  mutate(neighbours = as.character(col.id)) %>%
+  left_join(coords) %>%
+  rename(X2 = X,
+         Y2 = Y) %>%
+  select(X1:Y2) %>%
+  mutate(start = glue("{X1} {Y1}"),
+         finish = glue("{X2} {Y2}")) %>%
+  mutate(finish = sample_n(., nrow(.))$finish) %>%
+  mutate(path = glue("{X1} {Y1} - {X2} {Y2}")) %>%
+  select(path, start, finish) %>%
+  group_by(path) %>%
+  gather(position, coordinates, start:finish) %>%
+  separate(coordinates, sep = " ", into = c("X", "Y"), remove = FALSE) %>%
+  mutate(X = as.numeric(X),
+         Y = as.numeric(Y)) %>%
+  ungroup()
+
+p <- 
+  ggplot(data = ordest) +
   geom_point(aes(x = X, y =Y), 
-             colour = 'grey70')
+             size = 0.1,
+             colour = 'grey70', 
+             alpha = 0.5) +
+  geom_path(aes(x = X, y = Y, group = path),
+            colour = 'grey40') +
+  theme_void()
 
+ggsave(p, filename = "test.png", height = 6, width = 8)
 
 
