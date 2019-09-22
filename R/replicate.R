@@ -1,7 +1,8 @@
-read_csv("data-out/jobs.csv")
-read_csv("data-out/batch.csv") %>% glimpse()
+##
 
 library(tidycensus)
+
+##
 
 vars <- load_variables(year = 2016, dataset = "acs5", cache = TRUE)
 test <- 
