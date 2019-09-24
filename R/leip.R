@@ -49,7 +49,8 @@ read_csv("data-out/votes.csv") %>%
          pct_2 = d / total) %>%
   arrange(desc(d))
 
-vote <- read_csv("data-out/votes.csv") %>%
+votes <- 
+  read_csv("data-out/votes.csv") %>%
   filter(year == 2016) %>%
   select(GEOID, democrat_raw, republican_raw, total)
 
