@@ -129,3 +129,46 @@ flips <-
 margins %>%
   left_join(flips) %>%
   write_csv("left.csv")
+
+##
+
+congress <- read_csv("https://github.com/asrenninger/twentysixteen/raw/master/data-in/leip/2018_congressional_check.csv",
+                     skip = 1)
+
+##
+
+glimpse(congress)
+
+president <- 
+  read_csv("data-out/votes.csv") %>%
+  select(GEOID, year, total, democrat_pct, republican_pct, third_pct, other_pct)
+
+combined <- 
+  congress %>%
+  clean_names() %>%
+  mutate(GEOID = if_else(fips < 10000, paste("0", fips, sep = ""), paste(fips))) %>%
+  select(4:8, 27) %>%
+  set_names(c("total", "democrat_raw", "republican_raw", "third_raw", "other_raw",
+              "GEOID")) %>%
+  transmute(GEOID = GEOID,
+            year = 2018, 
+            total = total, 
+            democrat_pct = democrat_raw / total,
+            republican_pct = republican_raw / total,
+            third_pct = third_raw / total,
+            other_pct = other_raw / total) %>%
+  bind_rows(president) %>%
+  filter(year > 2015) %>%
+  arrange(year) %>%
+  group_by(GEOID) %>%
+  mutate(total_lagged = lag(total),
+         democrat_lagged = lag(democrat_pct),
+         republican_lagged = lag(republican_pct),
+         third_lagged = lag(third_pct),
+         other_lagged = lag(other_pct)) %>% 
+  ungroup() %>%
+  filter(year == 2018) %>%
+  mutate(margin = democrat_pct - republican_pct,
+         margin_2016 = democrat_lagged - republican_lagged) %>%
+  mutate(change_2016 = margin - margin_2016) %>%
+  select(GEOID, change_2016)
