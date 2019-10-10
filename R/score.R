@@ -695,3 +695,6 @@ tiebreak <-
   left_join(combined)
 
 with(tiebreak, t.test((change_2016 * 100) ~ rallied))
+
+sum(regression$trump_rallies_county_post_convention, na.rm = TRUE)
+sum(regression$clinton_rallies_county_post_convention, na.rm = TRUE)
