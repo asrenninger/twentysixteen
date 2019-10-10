@@ -1,3 +1,9 @@
+########################################################
+## Section 1: Create rallies dataset
+## ## Read and convert to long
+## ## Geocode each rally
+########################################################
+
 library(readxl)
 library(tidyverse)
 library(janitor)
@@ -97,7 +103,11 @@ rallies_located <-
 
 write_csv(rallies_located, "rallies.csv")
 
-##
+########################################################
+## Section 2: Determine media markets
+## ## Read in Nielson data
+## ## Join rallies to it
+########################################################
 
 library(sf)
 
@@ -178,7 +188,11 @@ dated %>%
 
 rallies <- read_csv("data-out/rallies.csv")
 
-##
+########################################################
+## Section 2: Feature engineering
+## ## Where were there rallies (DMA and county)?
+## ## How far were rallies?
+########################################################
 
 library(sf)
 

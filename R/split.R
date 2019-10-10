@@ -1,3 +1,9 @@
+########################################################
+## Section 1: Gather additional data
+## ## Read in Leip data
+## ## Join in spatial attributes
+########################################################
+
 library(tidyverse)
 library(janitor)
 library(readxl)
@@ -81,7 +87,11 @@ spatial_data <-
   left_join(counties) %>%
   st_as_sf()
 
-##
+########################################################
+## Section 2: Measure and test splits
+## ## Map it...
+## ## Test it...
+########################################################
 
 states <- st_read("data-out/states.geojson", crs = 102003)
 
