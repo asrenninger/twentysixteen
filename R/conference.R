@@ -291,10 +291,10 @@ pal <- read_csv("~/Desktop/R/Palettes/seismic.txt", col_names = FALSE) %>% pull(
 
 ##
 
-map_social <-ggplot(social %>%
-                      select(GEOID, rally) %>%
-                      left_join(counties) %>%
-                      st_as_sf()) +
+map_social <- ggplot(social %>%
+                       select(GEOID, rally) %>%
+                       left_join(counties) %>%
+                       st_as_sf()) +
   geom_sf(data = states, aes(), fill = NA, colour = '#000000', lwd = 0.5, alpha = 0.5) +
   geom_sf(aes(fill = factor(rally)), colour = '#ffffff', lwd = 0.1) +
   scale_fill_manual(values = c(pal[1], pal[9]), 
@@ -326,7 +326,7 @@ map_change <- ggplot(regression %>%
   geom_sf(data = states, aes(), fill = NA, colour = '#ffffff', lwd = 0.5, alpha = 0.5) +
   geom_sf(aes(fill = change_2012 * 100), colour = '#ffffff', lwd = 0.1) +
   scale_fill_gradientn(colours = rev(pal[5:9]), 
-                       limits = c(-50, 0),
+                       limits = c(-30, 0),
                        oob = squish,
                        name = '% change in (dem) margin from 2012',
                        guide = guide_continuous <- 
@@ -344,5 +344,130 @@ map_change <- ggplot(regression %>%
  
 ##
 
+points <- read_csv("data-out/rallies.csv")
 
- 
+##
+
+map_clinton <- 
+  ggplot() +
+  geom_sf(data = states, 
+          aes(), fill = NA, colour = '#000000', lwd = 0.5, alpha = 0.5) +
+ # geom_sf(data = regression %>% 
+#            select(GEOID, flips) %>%
+#            filter(flips == "DDR") %>%
+#            left_join(counties) %>%
+#            st_as_sf() %>%
+#            group_by(flips) %>%
+#            summarise(),
+#          aes(), fill = pal[6], colour = pal[8], lwd = 0.5, alpha = 0.5) +
+  geom_point(data = points %>%
+               filter(candidate == 'clinton') %>%
+               st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+               st_transform(102003) %>%
+               st_coordinates() %>%
+               as_tibble(),
+             aes(x = X, y = Y), colour = pal[1], size = 4) +
+  theme_map() + 
+  ggsave("map_clinton.png", height = 8, width = 10, dpi = 300)
+
+map_trump <- 
+  ggplot() +
+  geom_sf(data = states, 
+          aes(), fill = NA, colour = '#000000', lwd = 0.5, alpha = 0.5) +
+ # geom_sf(data = regression %>% 
+#            select(GEOID, flips) %>%
+#            filter(flips == "DDR") %>%
+#            left_join(counties) %>%
+#            st_as_sf() %>%
+#            group_by(flips) %>%
+#            summarise(),
+#          aes(), fill = pal[6], colour = pal[8], lwd = 0.5, alpha = 0.5) +
+  geom_point(data = points %>%
+               filter(candidate == 'trump') %>%
+               st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+               st_transform(102003) %>%
+               st_coordinates() %>%
+               as_tibble(),
+             aes(x = X, y = Y), colour = pal[9], size = 4) +
+  theme_map() +
+  ggsave("map_trump.png", height = 8, width = 10, dpi = 300)
+
+##
+
+library(ggdag)
+
+##
+
+dag  <- dagify(v ~ e,
+               v ~ c,
+               v ~ s,
+               e ~ c,
+               s ~ c, 
+               exposure = "c",
+               outcome = "v")
+
+ggdag(dag) + theme_dag_blank() + ggsave("dag.png", height = 4, width = 4, dpi = 300)
+
+##
+
+library(glue)
+library(readxl)
+
+##
+
+congress <-
+  reduce(
+    map(seq(2008, 2018, by = 2), function(x) {
+      glue("data-in/leip/splitting/House_Election_Data_{x}.xlsx") %>%
+        read_xlsx(sheet = 3, skip = 0) %>%
+        clean_names() %>%
+        mutate(fips = if_else(fips < 10000, paste("0", as.character(fips), sep = ""), as.character(fips))) %>%
+        select(fips, total_vote, 7:18, -9) %>%
+        set_names(c("GEOID", ids)) %>%
+        mutate(year = x) %>%
+        mutate(dem = as.numeric(dem),
+               rep = as.numeric(rep),
+               ind = as.numeric(ind),
+               other = as.numeric(ind)) %>%
+        drop_na(GEOID)
+    }),
+    bind_rows
+  )
+
+##
+
+bind_rows(congress %>%
+            filter(GEOID %in% spatial$GEOID) %>%
+            left_join(select(spatial, GEOID, rallied)) %>%
+            mutate(diff = dem - rep) %>%
+            select(GEOID, year, diff, rallied) %>%
+            group_by(year, rallied) %>%
+            summarise(change = mean(diff, na.rm = TRUE)) %>%
+            ungroup() %>% 
+            rename(rally = rallied) %>%
+            mutate(group = "spatial"), 
+          congress %>%
+            filter(GEOID %in% social$GEOID) %>%
+            left_join(select(social, GEOID, rally)) %>%
+            mutate(diff = dem - rep) %>%
+            select(GEOID, year, diff, rally) %>%
+            group_by(year, rally) %>%
+            summarise(change = mean(diff, na.rm = TRUE)) %>%
+            ungroup() %>%
+            mutate(group = "social")) %>%
+  ggplot(aes(year, change, colour = factor(rally))) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(2008, 2010, 2012, 2014, 2016, 2018)) +
+  scale_colour_manual(values = c(pal[1], pal[9]), name = 'rally indicator') +
+  facet_wrap(~ group, ncol = 1) +
+  ylab("Margin (dem) for congress") +
+  theme_hor() +
+  theme(legend.position = c(0.8, 0.8)) +
+  ggsave("congress.png", height = 8, width = 6, dp i = 300)
+
+  
+
+
+  
+
