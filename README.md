@@ -1,3 +1,3 @@
 # twentysixteen
 an analysis of the presidential contest with an eye on health, wealth, and communication
-![](viz/logo.png)
+![](viz/renninger_pacss2020_short.gif)
